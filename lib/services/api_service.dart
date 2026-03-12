@@ -68,7 +68,7 @@ class ApiService {
   /// Supported formats:
   /// 1. Direct list: [...]
   /// 2. DRF pagination: {results: [...], count: ...}
-  /// 3. Wrapped: {data: [...]}
+  /// 3. Wrapper: {data: [...], meta: {...}}
   List _parseListResponse(dynamic data) {
     if (data is List) return data;
     if (data is Map) {
@@ -78,13 +78,13 @@ class ApiService {
     return [];
   }
 
-  // AUTH — trailing slash YOQ (Django URL pattern shunday)
+  // AUTH — trailing slash SHART (Django REST Framework pattern)
   Future<UserModel> login(String username, String password) async {
     try {
       /*ignore: avoid_print*/
       print('$tag Logging in: $username');
       final response = await _dio.post(
-        'auth/login',
+        'auth/login/',
         data: {'username': username, 'password': password},
       );
       final data = response.data;
@@ -92,7 +92,13 @@ class ApiService {
       await _authService.saveToken(token);
       final refresh = data['refresh'] as String?;
       if (refresh != null) await _authService.saveRefreshToken(refresh);
-      final userMap = data['user'] as Map<String, dynamic>? ?? data;
+      // Backend 'user' yoki bevosita data return qilishi mumkin
+      Map<String, dynamic> userMap;
+      if (data.containsKey('user') && data['user'] is Map) {
+        userMap = data['user'] as Map<String, dynamic>;
+      } else {
+        userMap = data;
+      }
       final user = UserModel.fromJson({...userMap, 'token': token});
       await _authService.saveUser(user);
       /*ignore: avoid_print*/
@@ -153,7 +159,7 @@ class ApiService {
       /*ignore: avoid_print*/
       print('$tag Registering: $email');
       final response = await _dio.post(
-        'auth/register',
+        'auth/register/',
         data: {
           'username': username,
           'name': name,
@@ -169,7 +175,13 @@ class ApiService {
       await _authService.saveToken(token);
       final refresh = data['refresh'] as String?;
       if (refresh != null) await _authService.saveRefreshToken(refresh);
-      final userMap = data['user'] as Map<String, dynamic>? ?? data;
+      // Backend 'user' yoki bevosita data return qilishi mumkin
+      Map<String, dynamic> userMap;
+      if (data.containsKey('user') && data['user'] is Map) {
+        userMap = data['user'] as Map<String, dynamic>;
+      } else {
+        userMap = data;
+      }
       final user = UserModel.fromJson({...userMap, 'token': token});
       await _authService.saveUser(user);
       /*ignore: avoid_print*/
@@ -193,13 +205,13 @@ class ApiService {
 
   Future<void> logout() async {
     try {
-      await _dio.post('auth/logout');
+      await _dio.post('auth/logout/');
     } catch (_) {}
     await _authService.logout();
   }
 
   Future<UserModel> getMe() async {
-    final response = await _dio.get('auth/me');
+    final response = await _dio.get('auth/me/');
     final token = await _authService.getToken();
     return UserModel.fromJson({...response.data, 'token': token ?? ''});
   }

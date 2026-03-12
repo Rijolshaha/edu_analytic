@@ -9,7 +9,7 @@ import '../models/user_model.dart';
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 
 final currentUserProvider =
-StateNotifierProvider<CurrentUserNotifier, UserModel?>((ref) {
+    StateNotifierProvider<CurrentUserNotifier, UserModel?>((ref) {
   return CurrentUserNotifier();
 });
 
@@ -67,7 +67,7 @@ class AuthService {
   }
 
   // ── Token Refresh ──────────────────────────────────────
-  // POST /auth/refresh/  →  { token: "..." }
+  // POST /auth/refresh/  →  { access: "..." } yoki { token: "..." }
 
   Future<bool> refreshToken(Dio dio) async {
     try {
@@ -75,12 +75,14 @@ class AuthService {
       if (refreshToken == null) return false;
 
       final response = await dio.post(
-        '/auth/refresh/',
+        'auth/refresh/',
         data: {'refresh': refreshToken},
         options: Options(headers: {'Authorization': null}),
       );
 
-      final newToken = response.data['token'] as String?;
+      // Backend 'access' yoki 'token' qaytarishi mumkin
+      final newToken =
+          response.data['access'] ?? response.data['token'] as String?;
       if (newToken != null) {
         await saveToken(newToken);
         return true;

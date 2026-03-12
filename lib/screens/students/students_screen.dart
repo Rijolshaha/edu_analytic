@@ -10,7 +10,7 @@ import '../../models/student_model.dart';
 import '../../services/api_service.dart';
 
 final studentsProvider =
-StateNotifierProvider<StudentsNotifier, AsyncValue<List<StudentModel>>>(
+    StateNotifierProvider<StudentsNotifier, AsyncValue<List<StudentModel>>>(
         (ref) => StudentsNotifier(ref.read(apiServiceProvider)));
 
 class StudentsNotifier extends StateNotifier<AsyncValue<List<StudentModel>>> {
@@ -30,12 +30,12 @@ class StudentsNotifier extends StateNotifier<AsyncValue<List<StudentModel>>> {
 
   void remove(int id) {
     state.whenData(
-            (list) => state = AsyncData(list.where((s) => s.id != id).toList()));
+        (list) => state = AsyncData(list.where((s) => s.id != id).toList()));
   }
 
   void update(StudentModel updated) {
-    state.whenData((list) =>
-    state = AsyncData(list.map((s) => s.id == updated.id ? updated : s).toList()));
+    state.whenData((list) => state =
+        AsyncData(list.map((s) => s.id == updated.id ? updated : s).toList()));
   }
 }
 
@@ -76,7 +76,8 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
                 gradient: AppColors.primaryGradient,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
+              child:
+                  const Icon(Icons.add_rounded, color: Colors.white, size: 20),
             ),
             onPressed: () => _showAddDialog(context),
           ),
@@ -91,18 +92,18 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
             child: TextField(
               controller: _searchCtrl,
               onChanged: (v) =>
-              ref.read(studentSearchProvider.notifier).state = v,
+                  ref.read(studentSearchProvider.notifier).state = v,
               decoration: InputDecoration(
                 hintText: AppLocalizations.of(context)!.searchStudent,
                 prefixIcon: const Icon(Icons.search_rounded),
                 suffixIcon: search.isNotEmpty
                     ? IconButton(
-                  icon: const Icon(Icons.close_rounded),
-                  onPressed: () {
-                    _searchCtrl.clear();
-                    ref.read(studentSearchProvider.notifier).state = '';
-                  },
-                )
+                        icon: const Icon(Icons.close_rounded),
+                        onPressed: () {
+                          _searchCtrl.clear();
+                          ref.read(studentSearchProvider.notifier).state = '';
+                        },
+                      )
                     : null,
               ),
             ),
@@ -114,7 +115,8 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               children: [
-                _buildChip(context, AppLocalizations.of(context)!.all, null, filterCourse, isDark),
+                _buildChip(context, AppLocalizations.of(context)!.all, null,
+                    filterCourse, isDark),
                 ...mockCourses.map((c) =>
                     _buildChip(context, c.name, c.id, filterCourse, isDark)),
               ],
@@ -129,13 +131,14 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
               data: (students) {
                 var filtered = students;
                 if (filterCourse != null) {
-                  filtered =
-                      filtered.where((s) => s.courseId == filterCourse).toList();
+                  filtered = filtered
+                      .where((s) => s.courseId == filterCourse)
+                      .toList();
                 }
                 if (search.isNotEmpty) {
                   filtered = filtered
                       .where((s) =>
-                      s.name.toLowerCase().contains(search.toLowerCase()))
+                          s.name.toLowerCase().contains(search.toLowerCase()))
                       .toList();
                 }
                 if (filtered.isEmpty) return _buildEmpty(context);
@@ -173,15 +176,15 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
           color: isSelected
               ? null
               : isDark
-              ? AppColors.darkCard
-              : Colors.white,
+                  ? AppColors.darkCard
+                  : Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isSelected
                 ? Colors.transparent
                 : isDark
-                ? AppColors.darkBorder
-                : AppColors.lightBorder,
+                    ? AppColors.darkBorder
+                    : AppColors.lightBorder,
           ),
         ),
         child: Text(label,
@@ -189,8 +192,8 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
               color: isSelected
                   ? Colors.white
                   : isDark
-                  ? AppColors.darkText
-                  : AppColors.lightText,
+                      ? AppColors.darkText
+                      : AppColors.lightText,
               fontSize: 13,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
             )),
@@ -210,7 +213,7 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setD) => AlertDialog(
           shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Text(AppLocalizations.of(context)!.newStudent,
               style: TextStyle(fontWeight: FontWeight.w700)),
           content: SingleChildScrollView(
@@ -220,7 +223,7 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
                 // Ism
                 TextField(
                   controller: nameCtrl,
-                  decoration:  InputDecoration(
+                  decoration: InputDecoration(
                     labelText: '${AppLocalizations.of(context)!.studentName} *',
                     prefixIcon: Icon(Icons.person_outline_rounded),
                   ),
@@ -230,7 +233,7 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
                 TextField(
                   controller: emailCtrl,
                   keyboardType: TextInputType.emailAddress,
-                  decoration:  InputDecoration(
+                  decoration: InputDecoration(
                     labelText: AppLocalizations.of(context)!.emailOptional,
                     prefixIcon: Icon(Icons.email_outlined),
                   ),
@@ -238,14 +241,15 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
                 const SizedBox(height: 12),
                 // Kurs
                 DropdownButtonFormField<int>(
-                  decoration:  InputDecoration(
-                    labelText: '${AppLocalizations.of(context)!.selectCourse} *',
+                  decoration: InputDecoration(
+                    labelText:
+                        '${AppLocalizations.of(context)!.selectCourse} *',
                     prefixIcon: Icon(Icons.menu_book_rounded),
                   ),
                   value: selectedCourseId,
                   items: mockCourses
                       .map((c) =>
-                      DropdownMenuItem(value: c.id, child: Text(c.name)))
+                          DropdownMenuItem(value: c.id, child: Text(c.name)))
                       .toList(),
                   onChanged: (v) => setD(() {
                     selectedCourseId = v;
@@ -265,10 +269,10 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
                   items: selectedCourseId == null
                       ? []
                       : mockGroups
-                      .where((g) => g.courseId == selectedCourseId)
-                      .map((g) =>
-                      DropdownMenuItem(value: g.id, child: Text(g.name)))
-                      .toList(),
+                          .where((g) => g.courseId == selectedCourseId)
+                          .map((g) => DropdownMenuItem(
+                              value: g.id, child: Text(g.name)))
+                          .toList(),
                   onChanged: selectedCourseId == null
                       ? null
                       : (v) => setD(() => selectedGroupId = v),
@@ -286,24 +290,26 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
                     selectedCourseId != null &&
                     selectedGroupId != null) {
                   final course =
-                  mockCourses.firstWhere((c) => c.id == selectedCourseId);
+                      mockCourses.firstWhere((c) => c.id == selectedCourseId);
                   final group =
-                  mockGroups.firstWhere((g) => g.id == selectedGroupId);
+                      mockGroups.firstWhere((g) => g.id == selectedGroupId);
                   ref.read(studentsProvider.notifier).add(StudentModel(
-                    id: DateTime.now().millisecondsSinceEpoch,
-                    name: nameCtrl.text,
-                    email: emailCtrl.text.isNotEmpty ? emailCtrl.text : null,
-                    groupId: group.id,
-                    groupName: group.name,
-                    courseId: course.id,
-                    courseName: course.name,
-                    enrolledAt: DateTime.now(),
-                  ));
+                        id: DateTime.now().millisecondsSinceEpoch,
+                        name: nameCtrl.text,
+                        email:
+                            emailCtrl.text.isNotEmpty ? emailCtrl.text : null,
+                        groupId: group.id,
+                        groupName: group.name,
+                        courseId: course.id,
+                        courseName: course.name,
+                        enrolledAt: DateTime.now(),
+                      ));
                   Navigator.pop(ctx);
                 } else {
                   ScaffoldMessenger.of(ctx).showSnackBar(
-                     SnackBar(
-                      content: Text(AppLocalizations.of(context)!.requiredFields),
+                    SnackBar(
+                      content:
+                          Text(AppLocalizations.of(context)!.requiredFields),
                       backgroundColor: Color(0xFFEF4444),
                       duration: Duration(seconds: 2),
                     ),
@@ -330,7 +336,7 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setD) => AlertDialog(
           shape:
-          RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
           title: Text(AppLocalizations.of(context)!.editStudent,
               style: TextStyle(fontWeight: FontWeight.w700)),
           content: SingleChildScrollView(
@@ -361,7 +367,7 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
                   value: selectedCourseId,
                   items: mockCourses
                       .map((c) =>
-                      DropdownMenuItem(value: c.id, child: Text(c.name)))
+                          DropdownMenuItem(value: c.id, child: Text(c.name)))
                       .toList(),
                   onChanged: (v) => setD(() {
                     selectedCourseId = v;
@@ -378,7 +384,7 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
                   items: mockGroups
                       .where((g) => g.courseId == selectedCourseId)
                       .map((g) =>
-                      DropdownMenuItem(value: g.id, child: Text(g.name)))
+                          DropdownMenuItem(value: g.id, child: Text(g.name)))
                       .toList(),
                   onChanged: (v) => setD(() => selectedGroupId = v),
                 ),
@@ -392,18 +398,12 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
             ElevatedButton(
               onPressed: () {
                 if (nameCtrl.text.isNotEmpty) {
-                  final course = mockCourses
-                      .firstWhere((c) => c.id == selectedCourseId,
-                      orElse: () => mockCourses.first);
-                  final group = mockGroups
-                      .firstWhere((g) => g.id == selectedGroupId,
-                      orElse: () => mockGroups.first);
                   ref.read(studentsProvider.notifier).update(
-                    student.copyWith(
-                      name: nameCtrl.text,
-                      email: emailCtrl.text,
-                    ),
-                  );
+                        student.copyWith(
+                          name: nameCtrl.text,
+                          email: emailCtrl.text,
+                        ),
+                      );
                   Navigator.pop(ctx);
                 }
               },
@@ -420,8 +420,7 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        shape:
-        RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(AppLocalizations.of(context)!.deleteConfirm,
             style: TextStyle(fontWeight: FontWeight.w700)),
         content: Text('"${student.name}" ni o\'chirasizmi?'),
@@ -430,8 +429,7 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
               onPressed: () => Navigator.pop(ctx),
               child: Text(AppLocalizations.of(context)!.cancel)),
           ElevatedButton(
-            style:
-            ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
             onPressed: () {
               ref.read(studentsProvider.notifier).remove(student.id);
               Navigator.pop(ctx);
@@ -487,8 +485,8 @@ class _StudentTile extends StatelessWidget {
     final color = level == PerformanceLevel.high
         ? AppColors.highPerf
         : level == PerformanceLevel.medium
-        ? AppColors.mediumPerf
-        : AppColors.lowPerf;
+            ? AppColors.mediumPerf
+            : AppColors.lowPerf;
 
     return GestureDetector(
       onTap: onTap,
@@ -502,8 +500,8 @@ class _StudentTile extends StatelessWidget {
             color: student.isAtRisk
                 ? AppColors.danger.withOpacity(0.3)
                 : isDark
-                ? AppColors.darkBorder
-                : AppColors.lightBorder,
+                    ? AppColors.darkBorder
+                    : AppColors.lightBorder,
           ),
           boxShadow: [
             BoxShadow(
@@ -521,9 +519,7 @@ class _StudentTile extends StatelessWidget {
               backgroundColor: color.withOpacity(0.15),
               child: Text(student.name[0],
                   style: TextStyle(
-                      color: color,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 18)),
+                      color: color, fontWeight: FontWeight.w700, fontSize: 18)),
             ),
             const SizedBox(width: 14),
             // Info
@@ -628,8 +624,7 @@ class _StudentTile extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text('${val.toStringAsFixed(0)}%',
-            style:
-            const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700)),
         Text(label,
             style: const TextStyle(
                 fontSize: 9, color: AppColors.lightTextSecondary)),

@@ -1,4 +1,4 @@
-// lib/screens/auth/login_screen.dart
+// lib/screens/auth/register_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,21 +7,27 @@ import '../../l10n/app_localizations.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_service.dart';
 
-final _loginLoadingProvider = StateProvider<bool>((ref) => false);
+final _registerLoadingProvider = StateProvider<bool>((ref) => false);
 
-class LoginScreen extends ConsumerStatefulWidget {
-  const LoginScreen({super.key});
+class RegisterScreen extends ConsumerStatefulWidget {
+  const RegisterScreen({super.key});
 
   @override
-  ConsumerState<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _LoginScreenState extends ConsumerState<LoginScreen>
+class _RegisterScreenState extends ConsumerState<RegisterScreen>
     with SingleTickerProviderStateMixin {
   final _usernameCtrl = TextEditingController();
+  final _nameCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
+  final _passConfirmCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _subjectCtrl = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _obscure = true;
+  bool _obscureConfirm = true;
   late AnimationController _animCtrl;
   late Animation<double> _fadeAnim;
   late Animation<Offset> _slideAnim;
@@ -41,16 +47,37 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
   void dispose() {
     _animCtrl.dispose();
     _usernameCtrl.dispose();
+    _nameCtrl.dispose();
+    _emailCtrl.dispose();
     _passCtrl.dispose();
+    _passConfirmCtrl.dispose();
+    _phoneCtrl.dispose();
+    _subjectCtrl.dispose();
     super.dispose();
   }
 
-  Future<void> _login() async {
+  Future<void> _register() async {
     if (!_formKey.currentState!.validate()) return;
-    ref.read(_loginLoadingProvider.notifier).state = true;
+    if (_passCtrl.text != _passConfirmCtrl.text) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('Parollar mos kelmadi'), backgroundColor: Colors.red),
+      );
+      return;
+    }
+
+    ref.read(_registerLoadingProvider.notifier).state = true;
     try {
       final api = ref.read(apiServiceProvider);
-      final user = await api.login(_usernameCtrl.text.trim(), _passCtrl.text);
+      final user = await api.register(
+        username: _usernameCtrl.text.trim(),
+        name: _nameCtrl.text.trim(),
+        email: _emailCtrl.text.trim(),
+        password: _passCtrl.text,
+        password2: _passConfirmCtrl.text,
+        phone: _phoneCtrl.text.trim(),
+        subject: _subjectCtrl.text.trim(),
+      );
       final auth = ref.read(authServiceProvider);
       await auth.saveToken(user.token);
       await auth.saveUser(user);
@@ -70,13 +97,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         );
       }
     } finally {
-      ref.read(_loginLoadingProvider.notifier).state = false;
+      ref.read(_registerLoadingProvider.notifier).state = false;
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final isLoading = ref.watch(_loginLoadingProvider);
+    final isLoading = ref.watch(_registerLoadingProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
@@ -103,7 +130,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                     child: Column(
                       children: [
                         _buildLogo(isDark),
-                        const SizedBox(height: 40),
+                        const SizedBox(height: 32),
                         _buildCard(isLoading, isDark),
                       ],
                     ),
@@ -144,7 +171,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   fontWeight: FontWeight.w800,
                 )),
         const SizedBox(height: 8),
-        Text('O\'qituvchi paneli',
+        Text('Ro\'yxatdan o\'tish',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                   color: isDark
                       ? AppColors.darkTextSecondary
@@ -177,16 +204,16 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(l.loginWelcome,
+            Text('Yangi akkaunt yaratish',
                 style: Theme.of(context).textTheme.headlineMedium),
             const SizedBox(height: 6),
-            Text(l.loginSubtitle,
+            Text('Quyida barcha ma\'lumotlarni to\'ldiring',
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: isDark
                           ? AppColors.darkTextSecondary
                           : AppColors.lightTextSecondary,
                     )),
-            const SizedBox(height: 32),
+            const SizedBox(height: 28),
 
             // Username
             Text('Foydalanuvchi nomi',
@@ -196,14 +223,75 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               controller: _usernameCtrl,
               keyboardType: TextInputType.text,
               decoration: InputDecoration(
-                prefixIcon: const Icon(Icons.person_outline_rounded),
+                prefixIcon: const Icon(Icons.account_circle_outlined),
                 hintText: 'ali_karimov',
               ),
               validator: (v) => v == null || v.isEmpty
                   ? 'Foydalanuvchi nomini kiriting'
                   : null,
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 18),
+
+            // Full Name
+            Text('F.I.Sh.', style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _nameCtrl,
+              keyboardType: TextInputType.name,
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.person_outline_rounded),
+                hintText: 'Abdulaziz Rajabov',
+              ),
+              validator: (v) =>
+                  v == null || v.isEmpty ? 'Ismingizni kiriting' : null,
+            ),
+            const SizedBox(height: 18),
+
+            // Email
+            Text(l.email, style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.email_outlined),
+                hintText: 'teacher@example.com',
+              ),
+              validator: (v) {
+                if (v == null || v.isEmpty) return 'Email kiriting';
+                if (!v.contains('@')) return 'Email noto\'g\'ri formatda';
+                return null;
+              },
+            ),
+            const SizedBox(height: 18),
+
+            // Subject
+            Text('Predmet', style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _subjectCtrl,
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.book_outlined),
+                hintText: 'Matematika',
+              ),
+              validator: (v) =>
+                  v == null || v.isEmpty ? 'Predmetni kiriting' : null,
+            ),
+            const SizedBox(height: 18),
+
+            // Phone
+            Text('Telefon (ixtiyoriy)',
+                style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _phoneCtrl,
+              keyboardType: TextInputType.phone,
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.phone_outlined),
+                hintText: '+998901234567',
+              ),
+            ),
+            const SizedBox(height: 18),
 
             // Password
             Text(l.password, style: Theme.of(context).textTheme.labelLarge),
@@ -221,17 +309,44 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                   onPressed: () => setState(() => _obscure = !_obscure),
                 ),
               ),
+              validator: (v) {
+                if (v == null || v.length < 6) {
+                  return 'Parol juda qisqa (min. 6 ta belgisi)';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 18),
+
+            // Confirm Password
+            Text('Parolni tasdiqlash',
+                style: Theme.of(context).textTheme.labelLarge),
+            const SizedBox(height: 8),
+            TextFormField(
+              controller: _passConfirmCtrl,
+              obscureText: _obscureConfirm,
+              decoration: InputDecoration(
+                prefixIcon: const Icon(Icons.lock_outline_rounded),
+                hintText: 'Parolni qayta kiriting',
+                suffixIcon: IconButton(
+                  icon: Icon(_obscureConfirm
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined),
+                  onPressed: () =>
+                      setState(() => _obscureConfirm = !_obscureConfirm),
+                ),
+              ),
               validator: (v) =>
-                  v == null || v.length < 4 ? 'Parol juda qisqa' : null,
+                  v == null || v.isEmpty ? 'Parolni tasdiqlang' : null,
             ),
             const SizedBox(height: 32),
 
-            // Login Button
+            // Register Button
             SizedBox(
               width: double.infinity,
               height: 52,
               child: ElevatedButton(
-                onPressed: isLoading ? null : _login,
+                onPressed: isLoading ? null : _register,
                 style: ElevatedButton.styleFrom(
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14)),
@@ -244,23 +359,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
                         child: CircularProgressIndicator(
                             color: Colors.white, strokeWidth: 2.5),
                       )
-                    : Text(l.loginButton,
-                        style: const TextStyle(
+                    : const Text('Ro\'yxatdan o\'tish',
+                        style: TextStyle(
                             fontSize: 16, fontWeight: FontWeight.w600)),
               ),
             ),
             const SizedBox(height: 18),
 
-            // Register Link
+            // Login Link
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text('Akkaunt yo\'qmi?',
+                Text('Allaqachon akkaunt bor?',
                     style: Theme.of(context).textTheme.bodySmall),
                 const SizedBox(width: 6),
                 GestureDetector(
-                  onTap: () => context.go('/register'),
-                  child: Text('Ro\'yxatdan o\'tish',
+                  onTap: () => context.go('/login'),
+                  child: Text('Kirish',
                       style: Theme.of(context).textTheme.bodySmall?.copyWith(
                             color: AppColors.primary,
                             fontWeight: FontWeight.w700,

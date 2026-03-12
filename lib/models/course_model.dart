@@ -33,7 +33,7 @@ class CourseModel extends Equatable {
         groupCount: json['group_count'] ?? 0,
         studentCount: json['student_count'] ?? 0,
         averageScore: (json['average_score'] ?? 0.0).toDouble(),
-        createdAt: DateTime.parse(json['created_at']),
+        createdAt: _parseCourseDateTime(json['created_at']),
       );
 
   Map<String, dynamic> toJson() => {
@@ -75,10 +75,60 @@ class CourseModel extends Equatable {
   List<Object?> get props => [id, name, subject];
 }
 
+/// Safe DateTime parser uchun CourseModel'da
+DateTime _parseCourseDateTime(dynamic dateStr) {
+  if (dateStr == null) return DateTime.now();
+  if (dateStr is DateTime) return dateStr;
+  if (dateStr is String && dateStr.isEmpty) return DateTime.now();
+  try {
+    return DateTime.parse(dateStr.toString());
+  } catch (_) {
+    /*ignore: avoid_print*/
+    print('DateTime parsing xatoliki (CourseModel): $dateStr');
+    return DateTime.now();
+  }
+}
+
 // Mock data
 final List<CourseModel> mockCourses = [
-  CourseModel(id: 1, name: 'Matematika', description: 'Algebra va geometriya', subject: 'math', teacherId: 1, groupCount: 3, studentCount: 72, averageScore: 74.5, createdAt: DateTime(2024, 9, 1)),
-  CourseModel(id: 2, name: 'Fizika', description: 'Mexanika va optika', subject: 'physics', teacherId: 1, groupCount: 2, studentCount: 48, averageScore: 68.2, createdAt: DateTime(2024, 9, 1)),
-  CourseModel(id: 3, name: 'Informatika', description: 'Dasturlash asoslari', subject: 'cs', teacherId: 1, groupCount: 4, studentCount: 96, averageScore: 81.3, createdAt: DateTime(2024, 9, 1)),
-  CourseModel(id: 4, name: 'Ingliz tili', description: 'B1-B2 darajasi', subject: 'english', teacherId: 1, groupCount: 2, studentCount: 44, averageScore: 72.8, createdAt: DateTime(2024, 9, 1)),
+  CourseModel(
+      id: 1,
+      name: 'Matematika',
+      description: 'Algebra va geometriya',
+      subject: 'math',
+      teacherId: 1,
+      groupCount: 3,
+      studentCount: 72,
+      averageScore: 74.5,
+      createdAt: DateTime(2024, 9, 1)),
+  CourseModel(
+      id: 2,
+      name: 'Fizika',
+      description: 'Mexanika va optika',
+      subject: 'physics',
+      teacherId: 1,
+      groupCount: 2,
+      studentCount: 48,
+      averageScore: 68.2,
+      createdAt: DateTime(2024, 9, 1)),
+  CourseModel(
+      id: 3,
+      name: 'Informatika',
+      description: 'Dasturlash asoslari',
+      subject: 'cs',
+      teacherId: 1,
+      groupCount: 4,
+      studentCount: 96,
+      averageScore: 81.3,
+      createdAt: DateTime(2024, 9, 1)),
+  CourseModel(
+      id: 4,
+      name: 'Ingliz tili',
+      description: 'B1-B2 darajasi',
+      subject: 'english',
+      teacherId: 1,
+      groupCount: 2,
+      studentCount: 44,
+      averageScore: 72.8,
+      createdAt: DateTime(2024, 9, 1)),
 ];

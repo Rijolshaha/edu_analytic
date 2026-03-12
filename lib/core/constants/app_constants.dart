@@ -7,7 +7,9 @@ class AppConstants {
   static const String appVersion = '1.0.0';
 
   // API — oxirida / bo'lishi SHART (Dio uchun)
-  static const String baseUrl = 'https://eduanalytics.pythonanywhere.com/api/v1/';
+  // ⚠️ HTTPS serverda xatolik bo'lsa, malumot to'plash kerak (SSL sertifikat)
+  static const String baseUrl =
+      'https://eduanalytics.pythonanywhere.com/api/v1/';
   static const Duration connectTimeout = Duration(seconds: 30);
   static const Duration receiveTimeout = Duration(seconds: 30);
 

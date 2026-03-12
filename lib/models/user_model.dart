@@ -6,6 +6,9 @@ class UserModel extends Equatable {
   final String name;
   final String email;
   final String? avatar;
+  final String? username;
+  final String? phone;
+  final String? subject;
   final String token;
 
   const UserModel({
@@ -13,6 +16,9 @@ class UserModel extends Equatable {
     required this.name,
     required this.email,
     this.avatar,
+    this.username,
+    this.phone,
+    this.subject,
     required this.token,
   });
 
@@ -21,6 +27,9 @@ class UserModel extends Equatable {
         name: json['name'],
         email: json['email'],
         avatar: json['avatar'],
+        username: json['username'],
+        phone: json['phone'],
+        subject: json['subject'],
         token: json['token'],
       );
 
@@ -29,6 +38,9 @@ class UserModel extends Equatable {
         'name': name,
         'email': email,
         'avatar': avatar,
+        'username': username,
+        'phone': phone,
+        'subject': subject,
         'token': token,
       };
 

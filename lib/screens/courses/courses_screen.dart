@@ -1,14 +1,13 @@
 // lib/screens/courses/courses_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import '../../core/constants/app_colors.dart';
 import '../../l10n/app_localizations.dart';
 import '../../models/course_model.dart';
 import '../../services/api_service.dart';
 
 final coursesProvider =
-StateNotifierProvider<CoursesNotifier, AsyncValue<List<CourseModel>>>(
+    StateNotifierProvider<CoursesNotifier, AsyncValue<List<CourseModel>>>(
         (ref) => CoursesNotifier(ref.read(apiServiceProvider)));
 
 class CoursesNotifier extends StateNotifier<AsyncValue<List<CourseModel>>> {
@@ -29,8 +28,8 @@ class CoursesNotifier extends StateNotifier<AsyncValue<List<CourseModel>>> {
 
   Future<void> remove(int id) async {
     await _api.deleteCourse(id);
-    state.whenData((list) =>
-    state = AsyncData(list.where((c) => c.id != id).toList()));
+    state.whenData(
+        (list) => state = AsyncData(list.where((c) => c.id != id).toList()));
   }
 }
 
@@ -43,7 +42,6 @@ class CoursesScreen extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-
       appBar: AppBar(
         title: Text(AppLocalizations.of(context)!.courses),
         actions: [
@@ -54,7 +52,8 @@ class CoursesScreen extends ConsumerWidget {
                 gradient: AppColors.primaryGradient,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
+              child:
+                  const Icon(Icons.add_rounded, color: Colors.white, size: 20),
             ),
             onPressed: () => _showAddDialog(context, ref),
           ),
@@ -67,11 +66,11 @@ class CoursesScreen extends ConsumerWidget {
         data: (courses) => courses.isEmpty
             ? _buildEmpty(context)
             : ListView.builder(
-          padding: const EdgeInsets.all(20),
-          itemCount: courses.length,
-          itemBuilder: (ctx, i) =>
-              _CourseCard(course: courses[i], isDark: isDark),
-        ),
+                padding: const EdgeInsets.all(20),
+                itemCount: courses.length,
+                itemBuilder: (ctx, i) =>
+                    _CourseCard(course: courses[i], isDark: isDark),
+              ),
       ),
     );
   }
@@ -85,19 +84,21 @@ class CoursesScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title:  Text(AppLocalizations.of(context)!.newCourse,
+        title: Text(AppLocalizations.of(context)!.newCourse,
             style: TextStyle(fontWeight: FontWeight.w700)),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
               controller: nameCtrl,
-              decoration: InputDecoration(labelText: AppLocalizations.of(context)!.courseName),
+              decoration: InputDecoration(
+                  labelText: AppLocalizations.of(context)!.courseName),
             ),
             const SizedBox(height: 12),
             TextField(
               controller: subjectCtrl,
-              decoration: const InputDecoration(labelText: 'Fan (math, physics...)'),
+              decoration:
+                  const InputDecoration(labelText: 'Fan (math, physics...)'),
             ),
             const SizedBox(height: 12),
             TextField(
@@ -136,8 +137,7 @@ class CoursesScreen extends ConsumerWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Icon(Icons.menu_book_rounded,
-              size: 64,
-              color: AppColors.primary.withOpacity(0.3)),
+              size: 64, color: AppColors.primary.withOpacity(0.3)),
           const SizedBox(height: 16),
           Text(AppLocalizations.of(context)!.noData,
               style: Theme.of(context).textTheme.titleMedium),
@@ -158,8 +158,8 @@ class _CourseCard extends ConsumerWidget {
     final scoreColor = course.averageScore >= 75
         ? AppColors.success
         : course.averageScore >= 50
-        ? AppColors.warning
-        : AppColors.danger;
+            ? AppColors.warning
+            : AppColors.danger;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
@@ -184,7 +184,7 @@ class _CourseCard extends ConsumerWidget {
             decoration: BoxDecoration(
               gradient: AppColors.primaryGradient,
               borderRadius:
-              const BorderRadius.vertical(top: Radius.circular(18)),
+                  const BorderRadius.vertical(top: Radius.circular(18)),
             ),
             child: Row(
               children: [
@@ -219,8 +219,8 @@ class _CourseCard extends ConsumerWidget {
                   ),
                 ),
                 PopupMenuButton(
-                  icon: const Icon(Icons.more_vert_rounded,
-                      color: Colors.white),
+                  icon:
+                      const Icon(Icons.more_vert_rounded, color: Colors.white),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12)),
                   itemBuilder: (_) => [
@@ -236,9 +236,7 @@ class _CourseCard extends ConsumerWidget {
                   ],
                   onSelected: (v) {
                     if (v == 'delete') {
-                      ref
-                          .read(coursesProvider.notifier)
-                          .remove(course.id);
+                      ref.read(coursesProvider.notifier).remove(course.id);
                     }
                   },
                 ),
@@ -250,8 +248,8 @@ class _CourseCard extends ConsumerWidget {
             padding: const EdgeInsets.all(16),
             child: Row(
               children: [
-                _buildStat(context, Icons.group_rounded,
-                    '${course.groupCount}', 'Guruh'),
+                _buildStat(context, Icons.group_rounded, '${course.groupCount}',
+                    'Guruh'),
                 const SizedBox(width: 16),
                 _buildStat(context, Icons.people_alt_rounded,
                     '${course.studentCount}', 'O\'quvchi'),

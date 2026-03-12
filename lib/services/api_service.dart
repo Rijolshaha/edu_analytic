@@ -17,6 +17,7 @@ final apiServiceProvider = Provider<ApiService>((ref) {
 class ApiService {
   late final Dio _dio;
   final AuthService _authService;
+  static const String tag = '🌐 [API]';
 
   ApiService(this._authService) {
     _dio = Dio(BaseOptions(
@@ -49,30 +50,151 @@ class ApiService {
             }
           }
         }
+        // 500 errors - log backend error
+        if (error.response?.statusCode == 500) {
+          /*ignore: avoid_print*/
+          print('$tag Backend 500 Error:');
+          /*ignore: avoid_print*/
+          print('$tag URL: ${error.requestOptions.path}');
+          /*ignore: avoid_print*/
+          print('$tag Response: ${error.response?.data}');
+        }
         return handler.next(error);
       },
     ));
   }
 
+  /// Backend response parsing helper
+  /// Supported formats:
+  /// 1. Direct list: [...]
+  /// 2. DRF pagination: {results: [...], count: ...}
+  /// 3. Wrapped: {data: [...]}
+  List _parseListResponse(dynamic data) {
+    if (data is List) return data;
+    if (data is Map) {
+      if (data.containsKey('results')) return data['results'] as List? ?? [];
+      if (data.containsKey('data')) return data['data'] as List? ?? [];
+    }
+    return [];
+  }
+
   // AUTH — trailing slash YOQ (Django URL pattern shunday)
   Future<UserModel> login(String username, String password) async {
-    final response = await _dio.post(
-      'auth/login',
-      data: {'username': username, 'password': password},
-    );
-    final data = response.data;
-    final token = (data['token'] ?? data['access'] ?? '') as String;
-    await _authService.saveToken(token);
-    final refresh = data['refresh'] as String?;
-    if (refresh != null) await _authService.saveRefreshToken(refresh);
-    final userMap = data['user'] as Map<String, dynamic>? ?? data;
-    final user = UserModel.fromJson({...userMap, 'token': token});
-    await _authService.saveUser(user);
-    return user;
+    try {
+      /*ignore: avoid_print*/
+      print('$tag Logging in: $username');
+      final response = await _dio.post(
+        'auth/login',
+        data: {'username': username, 'password': password},
+      );
+      final data = response.data;
+      final token = (data['token'] ?? data['access'] ?? '') as String;
+      await _authService.saveToken(token);
+      final refresh = data['refresh'] as String?;
+      if (refresh != null) await _authService.saveRefreshToken(refresh);
+      final userMap = data['user'] as Map<String, dynamic>? ?? data;
+      final user = UserModel.fromJson({...userMap, 'token': token});
+      await _authService.saveUser(user);
+      /*ignore: avoid_print*/
+      print('$tag Login successful: ${user.name}');
+      return user;
+    } on DioException catch (e) {
+      /*ignore: avoid_print*/
+      print('$tag Login error [${e.response?.statusCode}]: ${e.message}');
+      /*ignore: avoid_print*/
+      print('$tag Response: ${e.response?.data}');
+
+      // User-friendly error message
+      final errorMsg = _getErrorMessage(e);
+      throw Exception(errorMsg);
+    } catch (e) {
+      /*ignore: avoid_print*/
+      print('$tag Login error: $e');
+      rethrow;
+    }
+  }
+
+  /// Extract user-friendly error message from DioException
+  String _getErrorMessage(DioException e) {
+    if (e.response?.statusCode == 500) {
+      return 'Server xatosi. Iltimos, keyinroq qayta urinib ko\'ring.';
+    }
+    if (e.response?.statusCode == 401 || e.response?.statusCode == 400) {
+      final data = e.response?.data;
+      if (data is Map) {
+        if (data.containsKey('detail')) return data['detail'].toString();
+        if (data.containsKey('message')) return data['message'].toString();
+      }
+      return 'Login yoki parol noto\'g\'ri';
+    }
+    if (e.response?.statusCode == 404) {
+      return 'Server topilmadi. URL ni tekshiring.';
+    }
+    if (e.type == DioExceptionType.connectionTimeout) {
+      return 'Ulanish vaqti tugadi. Internetni tekshiring.';
+    }
+    if (e.type == DioExceptionType.receiveTimeout) {
+      return 'Server javob bermadi. Iltimos, qayta urinib ko\'ring.';
+    }
+    return e.message ?? 'Noma\'lum xatolik';
+  }
+
+  // AUTH — Registration
+  Future<UserModel> register({
+    required String username,
+    required String name,
+    required String email,
+    required String password,
+    required String password2,
+    String? phone,
+    String? subject,
+  }) async {
+    try {
+      /*ignore: avoid_print*/
+      print('$tag Registering: $email');
+      final response = await _dio.post(
+        'auth/register',
+        data: {
+          'username': username,
+          'name': name,
+          'email': email,
+          'password': password,
+          'password2': password2,
+          'phone': phone ?? '',
+          'subject': subject ?? '',
+        },
+      );
+      final data = response.data;
+      final token = (data['token'] ?? data['access'] ?? '') as String;
+      await _authService.saveToken(token);
+      final refresh = data['refresh'] as String?;
+      if (refresh != null) await _authService.saveRefreshToken(refresh);
+      final userMap = data['user'] as Map<String, dynamic>? ?? data;
+      final user = UserModel.fromJson({...userMap, 'token': token});
+      await _authService.saveUser(user);
+      /*ignore: avoid_print*/
+      print('$tag Registration successful: ${user.name}');
+      return user;
+    } on DioException catch (e) {
+      /*ignore: avoid_print*/
+      print('$tag Register error [${e.response?.statusCode}]: ${e.message}');
+      /*ignore: avoid_print*/
+      print('$tag Response: ${e.response?.data}');
+
+      // User-friendly error message
+      final errorMsg = _getErrorMessage(e);
+      throw Exception(errorMsg);
+    } catch (e) {
+      /*ignore: avoid_print*/
+      print('$tag Register error: $e');
+      rethrow;
+    }
   }
 
   Future<void> logout() async {
-    try { await _dio.post('auth/logout'); } catch (_) {}
+    try {
+      await _dio.post('auth/logout');
+    } catch (_) {}
     await _authService.logout();
   }
 
@@ -85,7 +207,9 @@ class ApiService {
   // COURSES
   Future<List<CourseModel>> getCourses() async {
     final response = await _dio.get('courses/');
-    final List list = response.data is List ? response.data : response.data['results'] ?? [];
+    // Django REST Framework pagination bo'lsa: {results: [...], count: ...}
+    // Va bo'lmasa: [...]  yoki {data: [...]}
+    final List list = _parseListResponse(response.data);
     return list.map((e) => CourseModel.fromJson(e)).toList();
   }
 
@@ -112,7 +236,7 @@ class ApiService {
   Future<List<GroupModel>> getGroups({int? courseId}) async {
     final response = await _dio.get('groups/',
         queryParameters: courseId != null ? {'course_id': courseId} : null);
-    final List list = response.data is List ? response.data : response.data['results'] ?? [];
+    final List list = _parseListResponse(response.data);
     return list.map((e) => GroupModel.fromJson(e)).toList();
   }
 
@@ -142,7 +266,7 @@ class ApiService {
     if (courseId != null) params['course_id'] = courseId;
     final response = await _dio.get('students/',
         queryParameters: params.isNotEmpty ? params : null);
-    final List list = response.data is List ? response.data : response.data['results'] ?? [];
+    final List list = _parseListResponse(response.data);
     return list.map((e) => StudentModel.fromJson(e)).toList();
   }
 
@@ -173,13 +297,13 @@ class ApiService {
 
   // STATS
   Future<Map<String, dynamic>> getOverviewStats() async {
-    final response = await _dio.get('stats/overview');
+    final response = await _dio.get('stats/overview/');
     return response.data as Map<String, dynamic>;
   }
 
   Future<List<StudentModel>> getAtRiskStudents() async {
-    final response = await _dio.get('stats/at-risk');
-    final List list = response.data is List ? response.data : response.data['results'] ?? [];
+    final response = await _dio.get('stats/at-risk/');
+    final List list = _parseListResponse(response.data);
     return list.map((e) => StudentModel.fromJson(e)).toList();
   }
 

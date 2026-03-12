@@ -30,7 +30,7 @@ class GroupModel extends Equatable {
         studentCount: json['student_count'] ?? 0,
         averageScore: (json['average_score'] ?? 0.0).toDouble(),
         atRiskCount: json['at_risk_count'] ?? 0,
-        createdAt: DateTime.parse(json['created_at']),
+        createdAt: _parseGroupDateTime(json['created_at']),
       );
 
   Map<String, dynamic> toJson() => {
@@ -65,13 +65,91 @@ class GroupModel extends Equatable {
   List<Object?> get props => [id, name, courseId];
 }
 
+/// Safe DateTime parser uchun GroupModel'da
+DateTime _parseGroupDateTime(dynamic dateStr) {
+  if (dateStr == null) return DateTime.now();
+  if (dateStr is DateTime) return dateStr;
+  if (dateStr is String && dateStr.isEmpty) return DateTime.now();
+  try {
+    return DateTime.parse(dateStr.toString());
+  } catch (_) {
+    /*ignore: avoid_print*/
+    print('DateTime parsing xatoliki (GroupModel): $dateStr');
+    return DateTime.now();
+  }
+}
+
 final List<GroupModel> mockGroups = [
-  GroupModel(id: 1, name: 'A-guruh', courseId: 1, courseName: 'Matematika', studentCount: 25, averageScore: 76.3, atRiskCount: 3, createdAt: DateTime(2024, 9, 1)),
-  GroupModel(id: 2, name: 'B-guruh', courseId: 1, courseName: 'Matematika', studentCount: 24, averageScore: 71.8, atRiskCount: 5, createdAt: DateTime(2024, 9, 1)),
-  GroupModel(id: 3, name: 'C-guruh', courseId: 1, courseName: 'Matematika', studentCount: 23, averageScore: 75.4, atRiskCount: 2, createdAt: DateTime(2024, 9, 1)),
-  GroupModel(id: 4, name: 'A-guruh', courseId: 2, courseName: 'Fizika', studentCount: 25, averageScore: 69.5, atRiskCount: 6, createdAt: DateTime(2024, 9, 1)),
-  GroupModel(id: 5, name: 'B-guruh', courseId: 2, courseName: 'Fizika', studentCount: 23, averageScore: 67.0, atRiskCount: 7, createdAt: DateTime(2024, 9, 1)),
-  GroupModel(id: 6, name: 'A-guruh', courseId: 3, courseName: 'Informatika', studentCount: 26, averageScore: 83.2, atRiskCount: 1, createdAt: DateTime(2024, 9, 1)),
-  GroupModel(id: 7, name: 'B-guruh', courseId: 3, courseName: 'Informatika', studentCount: 24, averageScore: 80.1, atRiskCount: 2, createdAt: DateTime(2024, 9, 1)),
-  GroupModel(id: 8, name: 'C-guruh', courseId: 3, courseName: 'Informatika', studentCount: 25, averageScore: 81.7, atRiskCount: 2, createdAt: DateTime(2024, 9, 1)),
+  GroupModel(
+      id: 1,
+      name: 'A-guruh',
+      courseId: 1,
+      courseName: 'Matematika',
+      studentCount: 25,
+      averageScore: 76.3,
+      atRiskCount: 3,
+      createdAt: DateTime(2024, 9, 1)),
+  GroupModel(
+      id: 2,
+      name: 'B-guruh',
+      courseId: 1,
+      courseName: 'Matematika',
+      studentCount: 24,
+      averageScore: 71.8,
+      atRiskCount: 5,
+      createdAt: DateTime(2024, 9, 1)),
+  GroupModel(
+      id: 3,
+      name: 'C-guruh',
+      courseId: 1,
+      courseName: 'Matematika',
+      studentCount: 23,
+      averageScore: 75.4,
+      atRiskCount: 2,
+      createdAt: DateTime(2024, 9, 1)),
+  GroupModel(
+      id: 4,
+      name: 'A-guruh',
+      courseId: 2,
+      courseName: 'Fizika',
+      studentCount: 25,
+      averageScore: 69.5,
+      atRiskCount: 6,
+      createdAt: DateTime(2024, 9, 1)),
+  GroupModel(
+      id: 5,
+      name: 'B-guruh',
+      courseId: 2,
+      courseName: 'Fizika',
+      studentCount: 23,
+      averageScore: 67.0,
+      atRiskCount: 7,
+      createdAt: DateTime(2024, 9, 1)),
+  GroupModel(
+      id: 6,
+      name: 'A-guruh',
+      courseId: 3,
+      courseName: 'Informatika',
+      studentCount: 26,
+      averageScore: 83.2,
+      atRiskCount: 1,
+      createdAt: DateTime(2024, 9, 1)),
+  GroupModel(
+      id: 7,
+      name: 'B-guruh',
+      courseId: 3,
+      courseName: 'Informatika',
+      studentCount: 24,
+      averageScore: 80.1,
+      atRiskCount: 2,
+      createdAt: DateTime(2024, 9, 1)),
+  GroupModel(
+      id: 8,
+      name: 'C-guruh',
+      courseId: 3,
+      courseName: 'Informatika',
+      studentCount: 25,
+      averageScore: 81.7,
+      atRiskCount: 2,
+      createdAt: DateTime(2024, 9, 1)),
 ];

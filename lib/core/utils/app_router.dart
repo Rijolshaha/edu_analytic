@@ -1,8 +1,8 @@
 // lib/core/utils/app_router.dart
-import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../screens/auth/login_screen.dart';
+import '../../screens/auth/register_screen.dart';
 import '../../screens/shell/shell_screen.dart';
 import '../../screens/dashboard/dashboard_screen.dart';
 import '../../screens/courses/courses_screen.dart';
@@ -23,6 +23,11 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: '/login',
         name: 'login',
         builder: (context, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: '/register',
+        name: 'register',
+        builder: (context, state) => const RegisterScreen(),
       ),
 
       // Shell - bottom nav bor

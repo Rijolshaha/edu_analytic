@@ -8,10 +8,11 @@ import '../../models/course_model.dart';
 import '../../models/group_model.dart';
 import '../../models/student_model.dart';
 import '../../services/api_service.dart';
+import '../courses/courses_screen.dart' show coursesProvider;
 
 // ── Providers ──────────────────────────────────────────────
 final groupsProvider =
-StateNotifierProvider<GroupsNotifier, AsyncValue<List<GroupModel>>>(
+    StateNotifierProvider<GroupsNotifier, AsyncValue<List<GroupModel>>>(
         (ref) => GroupsNotifier(ref.read(apiServiceProvider)));
 
 class GroupsNotifier extends StateNotifier<AsyncValue<List<GroupModel>>> {
@@ -32,19 +33,20 @@ class GroupsNotifier extends StateNotifier<AsyncValue<List<GroupModel>>> {
 
   void remove(int id) {
     state.whenData(
-            (list) => state = AsyncData(list.where((g) => g.id != id).toList()));
+        (list) => state = AsyncData(list.where((g) => g.id != id).toList()));
   }
 
   void updateLocal(GroupModel updated) {
-    state.whenData((list) => state = AsyncData(
-        list.map((g) => g.id == updated.id ? updated : g).toList()));
+    state.whenData((list) => state =
+        AsyncData(list.map((g) => g.id == updated.id ? updated : g).toList()));
   }
 }
 
 // Guruh o'quvchilari uchun provider
-final groupStudentsProvider =
-StateNotifierProvider.family<GroupStudentsNotifier, List<StudentModel>, int>(
-        (ref, groupId) => GroupStudentsNotifier(groupId));
+final groupStudentsProvider = StateNotifierProvider.family<
+    GroupStudentsNotifier,
+    List<StudentModel>,
+    int>((ref, groupId) => GroupStudentsNotifier(groupId));
 
 class GroupStudentsNotifier extends StateNotifier<List<StudentModel>> {
   final int groupId;
@@ -84,7 +86,8 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
                 gradient: AppColors.primaryGradient,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.add_rounded, color: Colors.white, size: 20),
+              child:
+                  const Icon(Icons.add_rounded, color: Colors.white, size: 20),
             ),
             onPressed: () => _showAddGroupDialog(context),
           ),
@@ -101,7 +104,9 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
               data: (groups) {
                 final filtered = _selectedCourseId == null
                     ? groups
-                    : groups.where((g) => g.courseId == _selectedCourseId).toList();
+                    : groups
+                        .where((g) => g.courseId == _selectedCourseId)
+                        .toList();
                 if (filtered.isEmpty) return _buildEmpty(context);
                 return ListView.builder(
                   padding: const EdgeInsets.all(16),
@@ -124,16 +129,21 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
 
   // ── Filter chips ─────────────────────────────────────────
   Widget _buildCourseFilter(bool isDark) {
+    final coursesAsync = ref.watch(coursesProvider);
     return Container(
       height: 52,
       color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        children: [
-          _chip(AppLocalizations.of(context)!.all, null, isDark),
-          ...mockCourses.map((c) => _chip(c.name, c.id, isDark)),
-        ],
+      child: coursesAsync.when(
+        data: (courses) => ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          children: [
+            _chip(AppLocalizations.of(context)!.all, null, isDark),
+            ...courses.map((c) => _chip(c.name, c.id, isDark)),
+          ],
+        ),
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => const SizedBox(),
       ),
     );
   }
@@ -147,19 +157,27 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
         decoration: BoxDecoration(
           gradient: isSelected ? AppColors.primaryGradient : null,
-          color: isSelected ? null : isDark ? AppColors.darkCard : Colors.white,
+          color: isSelected
+              ? null
+              : isDark
+                  ? AppColors.darkCard
+                  : Colors.white,
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
             color: isSelected
                 ? Colors.transparent
-                : isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                : isDark
+                    ? AppColors.darkBorder
+                    : AppColors.lightBorder,
           ),
         ),
         child: Text(label,
             style: TextStyle(
               color: isSelected
                   ? Colors.white
-                  : isDark ? AppColors.darkText : AppColors.lightText,
+                  : isDark
+                      ? AppColors.darkText
+                      : AppColors.lightText,
               fontSize: 13,
               fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
             )),
@@ -174,46 +192,65 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
 
     showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setD) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(AppLocalizations.of(context)!.newGroup,
-              style: TextStyle(fontWeight: FontWeight.w700)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              DropdownButtonFormField<int>(
-                decoration: InputDecoration(labelText: AppLocalizations.of(context)!.selectCourse),
-                items: mockCourses
-                    .map((c) => DropdownMenuItem(value: c.id, child: Text(c.name)))
-                    .toList(),
-                onChanged: (v) => setD(() => selectedCourse = v),
+      builder: (ctx) => Consumer(
+        builder: (context, ref, _) {
+          final coursesAsync = ref.watch(coursesProvider);
+          return StatefulBuilder(
+            builder: (ctx, setD) => AlertDialog(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
+              title: Text(AppLocalizations.of(context)!.newGroup,
+                  style: TextStyle(fontWeight: FontWeight.w700)),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  coursesAsync.when(
+                    data: (courses) => DropdownButtonFormField<int>(
+                      decoration: InputDecoration(
+                          labelText:
+                              AppLocalizations.of(context)!.selectCourse),
+                      items: courses
+                          .map((c) => DropdownMenuItem(
+                              value: c.id, child: Text(c.name)))
+                          .toList(),
+                      onChanged: (v) => setD(() => selectedCourse = v),
+                    ),
+                    loading: () => const CircularProgressIndicator(),
+                    error: (e, _) => Text('Xatolik: $e'),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: nameCtrl,
+                    decoration: InputDecoration(
+                        labelText: AppLocalizations.of(context)!.groupNameHint),
+                  ),
+                ],
               ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: nameCtrl,
-                decoration: InputDecoration(labelText: AppLocalizations.of(context)!.groupNameHint),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppLocalizations.of(context)!.cancel)),
-            ElevatedButton(
-              onPressed: () {
-                if (nameCtrl.text.isNotEmpty && selectedCourse != null) {
-                  final course = mockCourses.firstWhere((c) => c.id == selectedCourse);
-                  ref.read(groupsProvider.notifier).add({
-                    'name': nameCtrl.text,
-                    'course_id': selectedCourse,
-                    'course_name': course.name,
-                  });
-                  Navigator.pop(ctx);
-                }
-              },
-              child: Text(AppLocalizations.of(context)!.save),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: Text(AppLocalizations.of(context)!.cancel)),
+                ElevatedButton(
+                  onPressed: () {
+                    if (nameCtrl.text.isNotEmpty && selectedCourse != null) {
+                      coursesAsync.whenData((courses) {
+                        final course =
+                            courses.firstWhere((c) => c.id == selectedCourse);
+                        ref.read(groupsProvider.notifier).add({
+                          'name': nameCtrl.text,
+                          'course': selectedCourse,
+                          'course_name': course.name,
+                        });
+                      });
+                      Navigator.pop(ctx);
+                    }
+                  },
+                  child: Text(AppLocalizations.of(context)!.save),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -229,15 +266,19 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
             style: TextStyle(fontWeight: FontWeight.w700)),
         content: TextField(
           controller: nameCtrl,
-          decoration: InputDecoration(labelText: AppLocalizations.of(context)!.groupName),
+          decoration: InputDecoration(
+              labelText: AppLocalizations.of(context)!.groupName),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppLocalizations.of(context)!.cancel)),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(AppLocalizations.of(context)!.cancel)),
           ElevatedButton(
             onPressed: () {
               if (nameCtrl.text.isNotEmpty) {
-                ref.read(groupsProvider.notifier).updateLocal(
-                    group.copyWith(name: nameCtrl.text));
+                ref
+                    .read(groupsProvider.notifier)
+                    .updateLocal(group.copyWith(name: nameCtrl.text));
                 Navigator.pop(ctx);
               }
             },
@@ -256,9 +297,12 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(AppLocalizations.of(context)!.deleteConfirm,
             style: TextStyle(fontWeight: FontWeight.w700)),
-        content: Text('"${group.name}" guruhini o\'chirasizmi?\nIchidagi o\'quvchilar ham o\'chadi.'),
+        content: Text(
+            '"${group.name}" guruhini o\'chirasizmi?\nIchidagi o\'quvchilar ham o\'chadi.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(AppLocalizations.of(context)!.cancel)),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(AppLocalizations.of(context)!.cancel)),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
             onPressed: () {
@@ -287,9 +331,11 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.group_rounded, size: 64, color: AppColors.primary.withOpacity(0.3)),
+          Icon(Icons.group_rounded,
+              size: 64, color: AppColors.primary.withOpacity(0.3)),
           const SizedBox(height: 16),
-          Text(AppLocalizations.of(context)!.groupNotFound, style: Theme.of(context).textTheme.titleMedium),
+          Text(AppLocalizations.of(context)!.groupNotFound,
+              style: Theme.of(context).textTheme.titleMedium),
         ],
       ),
     );
@@ -316,7 +362,9 @@ class _GroupCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final scoreColor = group.averageScore >= 75
         ? AppColors.success
-        : group.averageScore >= 50 ? AppColors.warning : AppColors.danger;
+        : group.averageScore >= 50
+            ? AppColors.warning
+            : AppColors.danger;
 
     return GestureDetector(
       onTap: onTap,
@@ -329,7 +377,10 @@ class _GroupCard extends StatelessWidget {
           border: Border.all(
               color: isDark ? AppColors.darkBorder : AppColors.lightBorder),
           boxShadow: [
-            BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 2))
+            BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2))
           ],
         ),
         child: Row(
@@ -343,7 +394,10 @@ class _GroupCard extends StatelessWidget {
               ),
               child: Center(
                 child: Text(group.name[0],
-                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 18)),
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 18)),
               ),
             ),
             const SizedBox(width: 14),
@@ -352,23 +406,34 @@ class _GroupCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(group.name,
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600)),
+                      style: Theme.of(context)
+                          .textTheme
+                          .titleMedium
+                          ?.copyWith(fontWeight: FontWeight.w600)),
                   Text(group.courseName,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.primary)),
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: AppColors.primary)),
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Icon(Icons.people_alt_rounded, size: 13,
-                          color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
+                      Icon(Icons.people_alt_rounded,
+                          size: 13,
+                          color: isDark
+                              ? AppColors.darkTextSecondary
+                              : AppColors.lightTextSecondary),
                       const SizedBox(width: 4),
                       Text('${group.studentCount} o\'quvchi',
                           style: Theme.of(context).textTheme.bodySmall),
                       if (group.atRiskCount > 0) ...[
                         const SizedBox(width: 10),
-                        const Icon(Icons.warning_amber_rounded, size: 13, color: AppColors.danger),
+                        const Icon(Icons.warning_amber_rounded,
+                            size: 13, color: AppColors.danger),
                         const SizedBox(width: 4),
                         Text('${group.atRiskCount} xavf',
-                            style: const TextStyle(color: AppColors.danger, fontSize: 11)),
+                            style: const TextStyle(
+                                color: AppColors.danger, fontSize: 11)),
                       ],
                     ],
                   ),
@@ -379,20 +444,30 @@ class _GroupCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 PopupMenuButton(
-                  icon: Icon(Icons.more_vert_rounded, size: 20,
-                      color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  icon: Icon(Icons.more_vert_rounded,
+                      size: 20,
+                      color: isDark
+                          ? AppColors.darkTextSecondary
+                          : AppColors.lightTextSecondary),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   itemBuilder: (_) => [
-                    const PopupMenuItem(value: 'edit',
+                    const PopupMenuItem(
+                        value: 'edit',
                         child: Row(children: [
-                          Icon(Icons.edit_outlined, color: AppColors.primary, size: 18),
-                          SizedBox(width: 8), Text('Tahrirlash'),
-                        ])),
-                    const PopupMenuItem(value: 'delete',
-                        child: Row(children: [
-                          Icon(Icons.delete_outline_rounded, color: AppColors.danger, size: 18),
+                          Icon(Icons.edit_outlined,
+                              color: AppColors.primary, size: 18),
                           SizedBox(width: 8),
-                          Text('O\'chirish', style: TextStyle(color: AppColors.danger)),
+                          Text('Tahrirlash'),
+                        ])),
+                    const PopupMenuItem(
+                        value: 'delete',
+                        child: Row(children: [
+                          Icon(Icons.delete_outline_rounded,
+                              color: AppColors.danger, size: 18),
+                          SizedBox(width: 8),
+                          Text('O\'chirish',
+                              style: TextStyle(color: AppColors.danger)),
                         ])),
                   ],
                   onSelected: (v) {
@@ -402,7 +477,10 @@ class _GroupCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text('${group.averageScore.toStringAsFixed(1)}%',
-                    style: TextStyle(color: scoreColor, fontWeight: FontWeight.w800, fontSize: 16)),
+                    style: TextStyle(
+                        color: scoreColor,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 16)),
                 Text('o\'rtacha', style: Theme.of(context).textTheme.bodySmall),
               ],
             ),
@@ -419,7 +497,8 @@ class _GroupStudentsSheet extends ConsumerStatefulWidget {
   const _GroupStudentsSheet({required this.group});
 
   @override
-  ConsumerState<_GroupStudentsSheet> createState() => _GroupStudentsSheetState();
+  ConsumerState<_GroupStudentsSheet> createState() =>
+      _GroupStudentsSheetState();
 }
 
 class _GroupStudentsSheetState extends ConsumerState<_GroupStudentsSheet> {
@@ -438,7 +517,9 @@ class _GroupStudentsSheetState extends ConsumerState<_GroupStudentsSheet> {
     final students = ref.watch(groupStudentsProvider(widget.group.id));
     final filtered = _search.isEmpty
         ? students
-        : students.where((s) => s.name.toLowerCase().contains(_search.toLowerCase())).toList();
+        : students
+            .where((s) => s.name.toLowerCase().contains(_search.toLowerCase()))
+            .toList();
 
     return DraggableScrollableSheet(
       initialChildSize: 0.75,
@@ -455,7 +536,8 @@ class _GroupStudentsSheetState extends ConsumerState<_GroupStudentsSheet> {
             Center(
               child: Container(
                 margin: const EdgeInsets.only(top: 12, bottom: 4),
-                width: 40, height: 4,
+                width: 40,
+                height: 4,
                 decoration: BoxDecoration(
                   color: isDark ? AppColors.darkBorder : AppColors.lightBorder,
                   borderRadius: BorderRadius.circular(2),
@@ -469,14 +551,18 @@ class _GroupStudentsSheetState extends ConsumerState<_GroupStudentsSheet> {
               child: Row(
                 children: [
                   Container(
-                    width: 44, height: 44,
+                    width: 44,
+                    height: 44,
                     decoration: BoxDecoration(
                       gradient: AppColors.primaryGradient,
                       borderRadius: BorderRadius.circular(13),
                     ),
                     child: Center(
                       child: Text(widget.group.name[0],
-                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 18)),
+                          style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 18)),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -485,9 +571,15 @@ class _GroupStudentsSheetState extends ConsumerState<_GroupStudentsSheet> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(widget.group.name,
-                            style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w700)),
                         Text(widget.group.courseName,
-                            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppColors.primary)),
+                            style: Theme.of(context)
+                                .textTheme
+                                .bodySmall
+                                ?.copyWith(color: AppColors.primary)),
                       ],
                     ),
                   ),
@@ -495,7 +587,8 @@ class _GroupStudentsSheetState extends ConsumerState<_GroupStudentsSheet> {
                   GestureDetector(
                     onTap: () => _showAddStudentDialog(context),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 14, vertical: 8),
                       decoration: BoxDecoration(
                         gradient: AppColors.primaryGradient,
                         borderRadius: BorderRadius.circular(10),
@@ -503,9 +596,14 @@ class _GroupStudentsSheetState extends ConsumerState<_GroupStudentsSheet> {
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.person_add_rounded, color: Colors.white, size: 16),
+                          Icon(Icons.person_add_rounded,
+                              color: Colors.white, size: 16),
                           SizedBox(width: 6),
-                          Text('Qo\'shish', style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600)),
+                          Text('Qo\'shish',
+                              style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600)),
                         ],
                       ),
                     ),
@@ -526,8 +624,11 @@ class _GroupStudentsSheetState extends ConsumerState<_GroupStudentsSheet> {
                   contentPadding: const EdgeInsets.symmetric(vertical: 10),
                   suffixIcon: _search.isNotEmpty
                       ? IconButton(
-                      icon: const Icon(Icons.close_rounded, size: 18),
-                      onPressed: () { _searchCtrl.clear(); setState(() => _search = ''); })
+                          icon: const Icon(Icons.close_rounded, size: 18),
+                          onPressed: () {
+                            _searchCtrl.clear();
+                            setState(() => _search = '');
+                          })
                       : null,
                 ),
               ),
@@ -538,10 +639,13 @@ class _GroupStudentsSheetState extends ConsumerState<_GroupStudentsSheet> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
               child: Row(
                 children: [
-                  _badge('${students.length} o\'quvchi', AppColors.primary, Icons.people_alt_rounded),
+                  _badge('${students.length} o\'quvchi', AppColors.primary,
+                      Icons.people_alt_rounded),
                   const SizedBox(width: 8),
-                  _badge('${students.where((s) => s.isAtRisk).length} xavf ostida',
-                      AppColors.danger, Icons.warning_amber_rounded),
+                  _badge(
+                      '${students.where((s) => s.isAtRisk).length} xavf ostida',
+                      AppColors.danger,
+                      Icons.warning_amber_rounded),
                 ],
               ),
             ),
@@ -552,38 +656,44 @@ class _GroupStudentsSheetState extends ConsumerState<_GroupStudentsSheet> {
             Expanded(
               child: filtered.isEmpty
                   ? Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(Icons.people_alt_rounded, size: 48, color: AppColors.primary.withOpacity(0.3)),
-                    const SizedBox(height: 12),
-                    Text('O\'quvchi topilmadi', style: Theme.of(context).textTheme.bodyMedium),
-                    const SizedBox(height: 8),
-                    TextButton.icon(
-                      onPressed: () => _showAddStudentDialog(context),
-                      icon: const Icon(Icons.person_add_rounded),
-                      label: Text(AppLocalizations.of(context)!.addStudent),
-                    ),
-                  ],
-                ),
-              )
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.people_alt_rounded,
+                              size: 48,
+                              color: AppColors.primary.withOpacity(0.3)),
+                          const SizedBox(height: 12),
+                          Text('O\'quvchi topilmadi',
+                              style: Theme.of(context).textTheme.bodyMedium),
+                          const SizedBox(height: 8),
+                          TextButton.icon(
+                            onPressed: () => _showAddStudentDialog(context),
+                            icon: const Icon(Icons.person_add_rounded),
+                            label:
+                                Text(AppLocalizations.of(context)!.addStudent),
+                          ),
+                        ],
+                      ),
+                    )
                   : ListView.builder(
-                controller: scrollCtrl,
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-                itemCount: filtered.length,
-                itemBuilder: (ctx, i) => _StudentRow(
-                  student: filtered[i],
-                  isDark: isDark,
-                  onView: () {
-                    Navigator.pop(context);
-                    context.pushNamed('student_detail',
-                        pathParameters: {'id': filtered[i].id.toString()},
-                        extra: filtered[i]);
-                  },
-                  onEdit: () => _showEditStudentDialog(context, filtered[i]),
-                  onDelete: () => _confirmDeleteStudent(context, filtered[i]),
-                ),
-              ),
+                      controller: scrollCtrl,
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+                      itemCount: filtered.length,
+                      itemBuilder: (ctx, i) => _StudentRow(
+                        student: filtered[i],
+                        isDark: isDark,
+                        onView: () {
+                          Navigator.pop(context);
+                          context.pushNamed('student_detail',
+                              pathParameters: {'id': filtered[i].id.toString()},
+                              extra: filtered[i]);
+                        },
+                        onEdit: () =>
+                            _showEditStudentDialog(context, filtered[i]),
+                        onDelete: () =>
+                            _confirmDeleteStudent(context, filtered[i]),
+                      ),
+                    ),
             ),
           ],
         ),
@@ -603,7 +713,9 @@ class _GroupStudentsSheetState extends ConsumerState<_GroupStudentsSheet> {
         children: [
           Icon(icon, size: 13, color: color),
           const SizedBox(width: 4),
-          Text(label, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+          Text(label,
+              style: TextStyle(
+                  color: color, fontSize: 12, fontWeight: FontWeight.w600)),
         ],
       ),
     );
@@ -623,16 +735,23 @@ class _GroupStudentsSheetState extends ConsumerState<_GroupStudentsSheet> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: nameCtrl,
-                decoration: InputDecoration(labelText: '${AppLocalizations.of(context)!.studentName} *')),
+            TextField(
+                controller: nameCtrl,
+                decoration: InputDecoration(
+                    labelText:
+                        '${AppLocalizations.of(context)!.studentName} *')),
             const SizedBox(height: 12),
-            TextField(controller: emailCtrl,
+            TextField(
+                controller: emailCtrl,
                 keyboardType: TextInputType.emailAddress,
-                decoration: InputDecoration(labelText: AppLocalizations.of(context)!.emailOptional)),
+                decoration: InputDecoration(
+                    labelText: AppLocalizations.of(context)!.emailOptional)),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dCtx), child: Text(AppLocalizations.of(context)!.cancel)),
+          TextButton(
+              onPressed: () => Navigator.pop(dCtx),
+              child: Text(AppLocalizations.of(context)!.cancel)),
           ElevatedButton(
             onPressed: () {
               if (nameCtrl.text.isNotEmpty) {
@@ -646,7 +765,9 @@ class _GroupStudentsSheetState extends ConsumerState<_GroupStudentsSheet> {
                   courseName: widget.group.courseName,
                   enrolledAt: DateTime.now(),
                 );
-                ref.read(groupStudentsProvider(widget.group.id).notifier).add(student);
+                ref
+                    .read(groupStudentsProvider(widget.group.id).notifier)
+                    .add(student);
                 Navigator.pop(dCtx);
               }
             },
@@ -671,20 +792,28 @@ class _GroupStudentsSheetState extends ConsumerState<_GroupStudentsSheet> {
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(controller: nameCtrl,
-                decoration: InputDecoration(labelText: AppLocalizations.of(context)!.studentName)),
+            TextField(
+                controller: nameCtrl,
+                decoration: InputDecoration(
+                    labelText: AppLocalizations.of(context)!.studentName)),
             const SizedBox(height: 12),
-            TextField(controller: emailCtrl,
-                decoration: InputDecoration(labelText: AppLocalizations.of(context)!.email)),
+            TextField(
+                controller: emailCtrl,
+                decoration: InputDecoration(
+                    labelText: AppLocalizations.of(context)!.email)),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dCtx), child: Text(AppLocalizations.of(context)!.cancel)),
+          TextButton(
+              onPressed: () => Navigator.pop(dCtx),
+              child: Text(AppLocalizations.of(context)!.cancel)),
           ElevatedButton(
             onPressed: () {
               if (nameCtrl.text.isNotEmpty) {
-                ref.read(groupStudentsProvider(widget.group.id).notifier)
-                    .update(student.copyWith(name: nameCtrl.text, email: emailCtrl.text));
+                ref
+                    .read(groupStudentsProvider(widget.group.id).notifier)
+                    .update(student.copyWith(
+                        name: nameCtrl.text, email: emailCtrl.text));
                 Navigator.pop(dCtx);
               }
             },
@@ -705,11 +834,15 @@ class _GroupStudentsSheetState extends ConsumerState<_GroupStudentsSheet> {
             style: TextStyle(fontWeight: FontWeight.w700)),
         content: Text('"${student.name}" ni o\'chirasizmi?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dCtx), child: Text(AppLocalizations.of(context)!.cancel)),
+          TextButton(
+              onPressed: () => Navigator.pop(dCtx),
+              child: Text(AppLocalizations.of(context)!.cancel)),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
             onPressed: () {
-              ref.read(groupStudentsProvider(widget.group.id).notifier).remove(student.id);
+              ref
+                  .read(groupStudentsProvider(widget.group.id).notifier)
+                  .remove(student.id);
               Navigator.pop(dCtx);
             },
             child: Text(AppLocalizations.of(context)!.delete),
@@ -741,7 +874,9 @@ class _StudentRow extends StatelessWidget {
     final level = student.scores.level;
     final color = level == PerformanceLevel.high
         ? AppColors.highPerf
-        : level == PerformanceLevel.medium ? AppColors.mediumPerf : AppColors.lowPerf;
+        : level == PerformanceLevel.medium
+            ? AppColors.mediumPerf
+            : AppColors.lowPerf;
 
     return GestureDetector(
       onTap: onView,
@@ -754,7 +889,9 @@ class _StudentRow extends StatelessWidget {
           border: Border.all(
             color: student.isAtRisk
                 ? AppColors.danger.withOpacity(0.25)
-                : isDark ? AppColors.darkBorder : AppColors.lightBorder,
+                : isDark
+                    ? AppColors.darkBorder
+                    : AppColors.lightBorder,
           ),
         ),
         child: Row(
@@ -763,7 +900,8 @@ class _StudentRow extends StatelessWidget {
               radius: 20,
               backgroundColor: color.withOpacity(0.15),
               child: Text(student.name[0],
-                  style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 15)),
+                  style: TextStyle(
+                      color: color, fontWeight: FontWeight.w700, fontSize: 15)),
             ),
             const SizedBox(width: 12),
             Expanded(
@@ -774,47 +912,72 @@ class _StudentRow extends StatelessWidget {
                     children: [
                       Expanded(
                         child: Text(student.name,
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w600, fontSize: 14),
-                            maxLines: 1, overflow: TextOverflow.ellipsis),
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleMedium
+                                ?.copyWith(
+                                    fontWeight: FontWeight.w600, fontSize: 14),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis),
                       ),
                       if (student.isAtRisk)
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
                             color: AppColors.danger.withOpacity(0.12),
                             borderRadius: BorderRadius.circular(6),
                           ),
                           child: const Text('Xavf',
-                              style: TextStyle(color: AppColors.danger, fontSize: 9, fontWeight: FontWeight.w700)),
+                              style: TextStyle(
+                                  color: AppColors.danger,
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700)),
                         ),
                     ],
                   ),
-                  Text('${student.scores.overall.toStringAsFixed(0)}% umumiy ball',
-                      style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w500)),
+                  Text(
+                      '${student.scores.overall.toStringAsFixed(0)}% umumiy ball',
+                      style: TextStyle(
+                          color: color,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w500)),
                 ],
               ),
             ),
             PopupMenuButton(
-              icon: Icon(Icons.more_vert_rounded, size: 18,
-                  color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              icon: Icon(Icons.more_vert_rounded,
+                  size: 18,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.lightTextSecondary),
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12)),
               itemBuilder: (_) => [
-                const PopupMenuItem(value: 'view',
+                const PopupMenuItem(
+                    value: 'view',
                     child: Row(children: [
-                      Icon(Icons.visibility_outlined, color: AppColors.primary, size: 18),
-                      SizedBox(width: 8), Text('Batafsil ko\'rish'),
-                    ])),
-                const PopupMenuItem(value: 'edit',
-                    child: Row(children: [
-                      Icon(Icons.edit_outlined, color: AppColors.info, size: 18),
-                      SizedBox(width: 8), Text('Tahrirlash'),
-                    ])),
-                const PopupMenuItem(value: 'delete',
-                    child: Row(children: [
-                      Icon(Icons.delete_outline_rounded, color: AppColors.danger, size: 18),
+                      Icon(Icons.visibility_outlined,
+                          color: AppColors.primary, size: 18),
                       SizedBox(width: 8),
-                      Text('O\'chirish', style: TextStyle(color: AppColors.danger)),
+                      Text('Batafsil ko\'rish'),
+                    ])),
+                const PopupMenuItem(
+                    value: 'edit',
+                    child: Row(children: [
+                      Icon(Icons.edit_outlined,
+                          color: AppColors.info, size: 18),
+                      SizedBox(width: 8),
+                      Text('Tahrirlash'),
+                    ])),
+                const PopupMenuItem(
+                    value: 'delete',
+                    child: Row(children: [
+                      Icon(Icons.delete_outline_rounded,
+                          color: AppColors.danger, size: 18),
+                      SizedBox(width: 8),
+                      Text('O\'chirish',
+                          style: TextStyle(color: AppColors.danger)),
                     ])),
               ],
               onSelected: (v) {

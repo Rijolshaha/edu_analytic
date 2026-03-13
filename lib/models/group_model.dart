@@ -23,13 +23,13 @@ class GroupModel extends Equatable {
   });
 
   factory GroupModel.fromJson(Map<String, dynamic> json) => GroupModel(
-        id: json['id'],
-        name: json['name'],
-        courseId: json['course_id'],
+        id: json['id'] as int? ?? 0,
+        name: json['name'] ?? '',
+        courseId: json['course_id'] as int? ?? 0,
         courseName: json['course_name'] ?? '',
-        studentCount: json['student_count'] ?? 0,
+        studentCount: json['student_count'] as int? ?? 0,
         averageScore: (json['average_score'] ?? 0.0).toDouble(),
-        atRiskCount: json['at_risk_count'] ?? 0,
+        atRiskCount: json['at_risk_count'] as int? ?? 0,
         createdAt: _parseGroupDateTime(json['created_at']),
       );
 

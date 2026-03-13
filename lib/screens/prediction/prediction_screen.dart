@@ -5,9 +5,10 @@ import '../../core/constants/app_colors.dart';
 import '../../models/student_model.dart';
 import '../../models/prediction_model.dart';
 import '../../services/api_service.dart';
+import '../../providers/data_providers.dart';
 
 final batchPredictionsProvider =
-StateProvider<List<PredictionResult>>((ref) => []);
+    StateProvider<List<PredictionResult>>((ref) => []);
 final batchLoadingProvider = StateProvider<bool>((ref) => false);
 final selectedStudentProvider = StateProvider<StudentModel?>((ref) => null);
 
@@ -39,19 +40,28 @@ class _PredictionScreenState extends ConsumerState<PredictionScreen>
     final api = ref.read(apiServiceProvider);
     final results = <PredictionResult>[];
 
-    for (final student in mockStudents) {
-      final result = await api.predict(PredictionRequest(
-        studentId: student.id,
-        attendance: student.scores.attendance,
-        homework: student.scores.homework,
-        quiz: student.scores.quiz,
-        exam: student.scores.exam,
-      ));
-      results.add(result);
-    }
+    // Get real students from API
+    final studentsAsync = ref.read(studentsProvider);
 
-    ref.read(batchPredictionsProvider.notifier).state = results;
-    ref.read(batchLoadingProvider.notifier).state = false;
+    studentsAsync.whenData((students) async {
+      for (final student in students) {
+        try {
+          final result = await api.predict(PredictionRequest(
+            studentId: student.id,
+            attendance: student.scores.attendance,
+            homework: student.scores.homework,
+            quiz: student.scores.quiz,
+            exam: student.scores.exam,
+          ));
+          results.add(result);
+        } catch (e) {
+          // Skip students that fail
+          debugPrint('Prediction failed for student ${student.name}: $e');
+        }
+      }
+      ref.read(batchPredictionsProvider.notifier).state = results;
+      ref.read(batchLoadingProvider.notifier).state = false;
+    });
   }
 
   @override
@@ -61,7 +71,6 @@ class _PredictionScreenState extends ConsumerState<PredictionScreen>
     final predictions = ref.watch(batchPredictionsProvider);
 
     return Scaffold(
-
       appBar: AppBar(
         title: const Text('ML Prognoz'),
         bottom: TabBar(
@@ -86,8 +95,10 @@ class _PredictionScreenState extends ConsumerState<PredictionScreen>
 
   Widget _buildOverviewTab(BuildContext context, bool isDark, bool isLoading,
       List<PredictionResult> predictions) {
-    final high = predictions.where((p) => p.level == PredictionLevel.high).length;
-    final medium = predictions.where((p) => p.level == PredictionLevel.medium).length;
+    final high =
+        predictions.where((p) => p.level == PredictionLevel.high).length;
+    final medium =
+        predictions.where((p) => p.level == PredictionLevel.medium).length;
     final low = predictions.where((p) => p.level == PredictionLevel.low).length;
 
     return SingleChildScrollView(
@@ -120,7 +131,7 @@ class _PredictionScreenState extends ConsumerState<PredictionScreen>
                         fontWeight: FontWeight.w700)),
                 const SizedBox(height: 8),
                 Text(
-                  '${mockStudents.length} ta o\'quvchi uchun kelajakdagi\no\'zlashtirish darajasini prognoz qiling',
+                  'Barcha o\'quvchilarni kelajakdagi\no\'zlashtirish darajasini prognoz qiling',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                       color: Colors.white.withOpacity(0.85), fontSize: 14),
@@ -139,10 +150,9 @@ class _PredictionScreenState extends ConsumerState<PredictionScreen>
                     ),
                     icon: isLoading
                         ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2.5))
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2.5))
                         : const Icon(Icons.play_arrow_rounded),
                     label: Text(
                         isLoading
@@ -174,14 +184,14 @@ class _PredictionScreenState extends ConsumerState<PredictionScreen>
                         AppColors.warningGradient, Icons.trending_up_rounded)),
                 const SizedBox(width: 12),
                 Expanded(
-                    child: _levelCard(
-                        'Past', low, AppColors.dangerGradient, Icons.warning_rounded)),
+                    child: _levelCard('Past', low, AppColors.dangerGradient,
+                        Icons.warning_rounded)),
               ],
             ),
             const SizedBox(height: 20),
             // Risk progress
-            _buildRiskBar(context, isDark, high, medium, low,
-                predictions.length),
+            _buildRiskBar(
+                context, isDark, high, medium, low, predictions.length),
           ],
 
           if (isLoading) ...[
@@ -283,8 +293,7 @@ class _PredictionScreenState extends ConsumerState<PredictionScreen>
         Container(
             width: 10,
             height: 10,
-            decoration:
-            BoxDecoration(color: color, shape: BoxShape.circle)),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(width: 6),
         Text('$label: $count (${(count / total * 100).toStringAsFixed(0)}%)',
             style: const TextStyle(fontSize: 12)),
@@ -308,15 +317,14 @@ class _PredictionScreenState extends ConsumerState<PredictionScreen>
           Text('ML model tahlil qilmoqda...',
               style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: 6),
-          Text('Iltimos kuting',
-              style: Theme.of(context).textTheme.bodySmall),
+          Text('Iltimos kuting', style: Theme.of(context).textTheme.bodySmall),
         ],
       ),
     );
   }
 
-  Widget _buildResultsTab(BuildContext context, bool isDark,
-      List<PredictionResult> predictions) {
+  Widget _buildResultsTab(
+      BuildContext context, bool isDark, List<PredictionResult> predictions) {
     if (predictions.isEmpty) {
       return Center(
         child: Column(
@@ -356,8 +364,8 @@ class _PredictionCard extends StatelessWidget {
     final color = isHigh
         ? AppColors.highPerf
         : isMedium
-        ? AppColors.mediumPerf
-        : AppColors.lowPerf;
+            ? AppColors.mediumPerf
+            : AppColors.lowPerf;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 10),
@@ -374,9 +382,7 @@ class _PredictionCard extends StatelessWidget {
             backgroundColor: color.withOpacity(0.15),
             child: Text(prediction.studentName[0],
                 style: TextStyle(
-                    color: color,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 16)),
+                    color: color, fontWeight: FontWeight.w700, fontSize: 16)),
           ),
           const SizedBox(width: 12),
           Expanded(
@@ -389,7 +395,10 @@ class _PredictionCard extends StatelessWidget {
                         .titleMedium
                         ?.copyWith(fontWeight: FontWeight.w600)),
                 Text(prediction.levelLabel,
-                    style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600)),
+                    style: TextStyle(
+                        color: color,
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600)),
               ],
             ),
           ),
@@ -398,9 +407,7 @@ class _PredictionCard extends StatelessWidget {
             children: [
               Text('${prediction.predictedScore.toStringAsFixed(0)}%',
                   style: TextStyle(
-                      color: color,
-                      fontWeight: FontWeight.w800,
-                      fontSize: 18)),
+                      color: color, fontWeight: FontWeight.w800, fontSize: 18)),
               Text('Xavf: ${prediction.riskPercentage.toStringAsFixed(0)}%',
                   style: const TextStyle(fontSize: 11)),
             ],

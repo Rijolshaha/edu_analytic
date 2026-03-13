@@ -197,7 +197,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
               keyboardType: TextInputType.text,
               decoration: InputDecoration(
                 prefixIcon: const Icon(Icons.person_outline_rounded),
-                hintText: 'ali_karimov',
+                hintText: 'username ni kiriting',
               ),
               validator: (v) => v == null || v.isEmpty
                   ? 'Foydalanuvchi nomini kiriting'

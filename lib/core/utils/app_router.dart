@@ -13,10 +13,33 @@ import '../../screens/prediction/prediction_screen.dart';
 import '../../screens/statistics/statistics_screen.dart';
 import '../../screens/settings/settings_screen.dart';
 import '../../models/student_model.dart';
+import '../../services/auth_service.dart';
+
+// Provider to check if user is logged in
+final isLoggedInProvider = FutureProvider<bool>((ref) async {
+  final authService = ref.read(authServiceProvider);
+  return authService.isLoggedIn();
+});
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/login',
+    redirect: (context, state) async {
+      final isLoggedIn = await ref.read(authServiceProvider).isLoggedIn();
+      final isOnLogin = state.matchedLocation == '/login';
+
+      // If not logged in and not on login page, redirect to login
+      if (!isLoggedIn && !isOnLogin) {
+        return '/login';
+      }
+
+      // If logged in and on login page, redirect to dashboard
+      if (isLoggedIn && isOnLogin) {
+        return '/dashboard';
+      }
+
+      return null;
+    },
     routes: [
       // Auth - bottom nav yo'q
       GoRoute(

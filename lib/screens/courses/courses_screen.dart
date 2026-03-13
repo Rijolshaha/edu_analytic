@@ -6,6 +6,21 @@ import '../../l10n/app_localizations.dart';
 import '../../models/course_model.dart';
 import '../../services/api_service.dart';
 
+// Subject choices matching Django backend
+const List<Map<String, String>> subjectChoices = [
+  {'value': 'math', 'label': 'Matematika'},
+  {'value': 'physics', 'label': 'Fizika'},
+  {'value': 'chemistry', 'label': 'Kimyo'},
+  {'value': 'biology', 'label': 'Biologiya'},
+  {'value': 'history', 'label': 'Tarix'},
+  {'value': 'geography', 'label': 'Geografiya'},
+  {'value': 'literature', 'label': 'Adabiyot'},
+  {'value': 'english', 'label': 'Ingliz tili'},
+  {'value': 'uzbek', 'label': 'O\'zbek tili'},
+  {'value': 'it', 'label': 'Informatika'},
+  {'value': 'other', 'label': 'Boshqa'},
+];
+
 final coursesProvider =
     StateNotifierProvider<CoursesNotifier, AsyncValue<List<CourseModel>>>(
         (ref) => CoursesNotifier(ref.read(apiServiceProvider)));
@@ -21,15 +36,42 @@ class CoursesNotifier extends StateNotifier<AsyncValue<List<CourseModel>>> {
     state = await AsyncValue.guard(() => _api.getCourses());
   }
 
-  Future<void> add(Map<String, dynamic> data) async {
-    final course = await _api.createCourse(data);
-    state.whenData((list) => state = AsyncData([...list, course]));
+  Future<bool> add(Map<String, dynamic> data) async {
+    try {
+      final course = await _api.createCourse(data);
+      state.whenData((list) => state = AsyncData([...list, course]));
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
-  Future<void> remove(int id) async {
-    await _api.deleteCourse(id);
-    state.whenData(
-        (list) => state = AsyncData(list.where((c) => c.id != id).toList()));
+  Future<bool> update(int id, Map<String, dynamic> data) async {
+    try {
+      final updatedCourse = await _api.updateCourse(id, data);
+      state.whenData((list) {
+        final index = list.indexWhere((c) => c.id == id);
+        if (index != -1) {
+          final newList = [...list];
+          newList[index] = updatedCourse;
+          state = AsyncData(newList);
+        }
+      });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<bool> remove(int id) async {
+    try {
+      await _api.deleteCourse(id);
+      state.whenData(
+          (list) => state = AsyncData(list.where((c) => c.id != id).toList()));
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 }
 
@@ -78,55 +120,88 @@ class CoursesScreen extends ConsumerWidget {
   void _showAddDialog(BuildContext context, WidgetRef ref) {
     final nameCtrl = TextEditingController();
     final descCtrl = TextEditingController();
-    final subjectCtrl = TextEditingController();
+    String selectedSubject = 'other';
+    bool isLoading = false;
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(AppLocalizations.of(context)!.newCourse,
-            style: TextStyle(fontWeight: FontWeight.w700)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              decoration: InputDecoration(
-                  labelText: AppLocalizations.of(context)!.courseName),
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(AppLocalizations.of(context)!.newCourse,
+              style: TextStyle(fontWeight: FontWeight.w700)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                decoration: InputDecoration(
+                    labelText: AppLocalizations.of(context)!.courseName),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: selectedSubject,
+                decoration: const InputDecoration(labelText: 'Fan'),
+                items: subjectChoices.map((s) {
+                  return DropdownMenuItem(
+                    value: s['value'],
+                    child: Text(s['label']!),
+                  );
+                }).toList(),
+                onChanged: (v) {
+                  if (v != null) {
+                    setState(() => selectedSubject = v);
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: descCtrl,
+                decoration: const InputDecoration(labelText: 'Tavsif'),
+                maxLines: 2,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isLoading ? null : () => Navigator.pop(ctx),
+              child: Text(AppLocalizations.of(context)!.cancel),
             ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: subjectCtrl,
-              decoration:
-                  const InputDecoration(labelText: 'Fan (math, physics...)'),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: descCtrl,
-              decoration: const InputDecoration(labelText: 'Tavsif'),
-              maxLines: 2,
+            ElevatedButton(
+              onPressed: isLoading
+                  ? null
+                  : () async {
+                      if (nameCtrl.text.isNotEmpty) {
+                        setState(() => isLoading = true);
+                        final success =
+                            await ref.read(coursesProvider.notifier).add({
+                          'name': nameCtrl.text,
+                          'subject': selectedSubject,
+                          'description': descCtrl.text,
+                        });
+                        if (context.mounted) {
+                          Navigator.pop(ctx);
+                          if (!success) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text(
+                                      'Xatolik: Kurs qo\'shish muvaffaqiyatsiz')),
+                            );
+                          }
+                        }
+                      }
+                    },
+              child: isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : Text(AppLocalizations.of(context)!.save),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(AppLocalizations.of(context)!.cancel),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (nameCtrl.text.isNotEmpty) {
-                ref.read(coursesProvider.notifier).add({
-                  'name': nameCtrl.text,
-                  'subject': subjectCtrl.text,
-                  'description': descCtrl.text,
-                });
-                Navigator.pop(ctx);
-              }
-            },
-            child: Text(AppLocalizations.of(context)!.save),
-          ),
-        ],
       ),
     );
   }
@@ -225,6 +300,15 @@ class _CourseCard extends ConsumerWidget {
                       borderRadius: BorderRadius.circular(12)),
                   itemBuilder: (_) => [
                     const PopupMenuItem(
+                        value: 'edit',
+                        child: Row(children: [
+                          Icon(Icons.edit_outlined,
+                              color: AppColors.primary, size: 18),
+                          SizedBox(width: 8),
+                          Text('Tahrirlash',
+                              style: TextStyle(color: AppColors.primary)),
+                        ])),
+                    const PopupMenuItem(
                         value: 'delete',
                         child: Row(children: [
                           Icon(Icons.delete_outline_rounded,
@@ -236,7 +320,9 @@ class _CourseCard extends ConsumerWidget {
                   ],
                   onSelected: (v) {
                     if (v == 'delete') {
-                      ref.read(coursesProvider.notifier).remove(course.id);
+                      _showDeleteDialog(context, ref);
+                    } else if (v == 'edit') {
+                      _showEditDialog(context, ref);
                     }
                   },
                 ),
@@ -305,6 +391,125 @@ class _CourseCard extends ConsumerWidget {
           ],
         ),
       ],
+    );
+  }
+
+  void _showDeleteDialog(BuildContext context, WidgetRef ref) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: const Text('Kursni o\'chirish'),
+        content: Text('"${course.name}" kursini o\'chirishni tasdiqlaysizmi?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(AppLocalizations.of(context)!.cancel),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.danger,
+            ),
+            onPressed: () async {
+              await ref.read(coursesProvider.notifier).remove(course.id);
+              if (context.mounted) Navigator.pop(ctx);
+            },
+            child: const Text('O\'chirish'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showEditDialog(BuildContext context, WidgetRef ref) {
+    final nameCtrl = TextEditingController(text: course.name);
+    final descCtrl = TextEditingController(text: course.description);
+    String selectedSubject = course.subject;
+    bool isLoading = false;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text('Kursni tahrirlash',
+              style: TextStyle(fontWeight: FontWeight.w700)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: nameCtrl,
+                decoration: InputDecoration(
+                    labelText: AppLocalizations.of(context)!.courseName),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: selectedSubject,
+                decoration: const InputDecoration(labelText: 'Fan'),
+                items: subjectChoices.map((s) {
+                  return DropdownMenuItem(
+                    value: s['value'],
+                    child: Text(s['label']!),
+                  );
+                }).toList(),
+                onChanged: (v) {
+                  if (v != null) {
+                    setState(() => selectedSubject = v);
+                  }
+                },
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: descCtrl,
+                decoration: const InputDecoration(labelText: 'Tavsif'),
+                maxLines: 2,
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isLoading ? null : () => Navigator.pop(ctx),
+              child: Text(AppLocalizations.of(context)!.cancel),
+            ),
+            ElevatedButton(
+              onPressed: isLoading
+                  ? null
+                  : () async {
+                      if (nameCtrl.text.isNotEmpty) {
+                        setState(() => isLoading = true);
+                        final success =
+                            await ref.read(coursesProvider.notifier).update(
+                          course.id,
+                          {
+                            'name': nameCtrl.text,
+                            'subject': selectedSubject,
+                            'description': descCtrl.text,
+                          },
+                        );
+                        if (context.mounted) {
+                          Navigator.pop(ctx);
+                          if (!success) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                  content: Text(
+                                      'Xatolik: Kursni tahrirlash muvaffaqiyatsiz')),
+                            );
+                          }
+                        }
+                      }
+                    },
+              child: isLoading
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Saqlash'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

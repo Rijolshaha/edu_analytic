@@ -7,6 +7,7 @@ import '../models/course_model.dart';
 import '../models/group_model.dart';
 import '../models/student_model.dart';
 import '../models/prediction_model.dart';
+import '../models/notification_model.dart';
 import 'auth_service.dart';
 
 final apiServiceProvider = Provider<ApiService>((ref) {
@@ -125,6 +126,27 @@ class ApiService {
     if (e.response?.statusCode == 500) {
       return 'Server xatosi. Iltimos, keyinroq qayta urinib ko\'ring.';
     }
+    if (e.response?.statusCode == 422) {
+      // 422 Unprocessable Entity - validation error
+      final data = e.response?.data;
+      /*ignore: avoid_print*/
+      print('$tag 422 Validation Error: $data');
+      if (data is Map) {
+        // Try to extract validation error details
+        final errors = StringBuffer();
+        data.forEach((key, value) {
+          if (value is List && value.isNotEmpty) {
+            errors.write('$key: ${value.join(", ")}. ');
+          } else if (value is String) {
+            errors.write('$key: $value. ');
+          }
+        });
+        if (errors.isNotEmpty) {
+          return 'Ma\'lumotlar xatosi: ${errors.toString()}';
+        }
+      }
+      return 'Ma\'lumotlarni qayta tekshiring va qayta urinib ko\'ring.';
+    }
     if (e.response?.statusCode == 401 || e.response?.statusCode == 400) {
       final data = e.response?.data;
       if (data is Map) {
@@ -236,7 +258,7 @@ class ApiService {
   }
 
   Future<CourseModel> updateCourse(int id, Map<String, dynamic> data) async {
-    final response = await _dio.put('courses/$id/', data: data);
+    final response = await _dio.patch('courses/$id/', data: data);
     return CourseModel.fromJson(response.data);
   }
 
@@ -303,8 +325,29 @@ class ApiService {
 
   // PREDICTION
   Future<PredictionResult> predict(PredictionRequest request) async {
-    final response = await _dio.post('predict/', data: request.toJson());
-    return PredictionResult.fromJson(response.data);
+    /*ignore: avoid_print*/
+    print('$tag Predict request: ${request.toJson()}');
+    try {
+      // Ensure all numeric values are doubles for the backend
+      final Map<String, dynamic> data = {
+        'student_id': request.studentId,
+        'attendance': request.attendance.toDouble(),
+        'homework': request.homework.toDouble(),
+        'quiz': request.quiz.toDouble(),
+        'exam': request.exam.toDouble(),
+      };
+      final response = await _dio.post('predict/', data: data);
+      return PredictionResult.fromJson(response.data);
+    } on DioException catch (e) {
+      /*ignore: avoid_print*/
+      print('$tag Predict error [${e.response?.statusCode}]: ${e.message}');
+      /*ignore: avoid_print*/
+      print('$tag Predict request data: ${request.toJson()}');
+      /*ignore: avoid_print*/
+      print('$tag Predict response: ${e.response?.data}');
+      final errorMsg = _getErrorMessage(e);
+      throw Exception(errorMsg);
+    }
   }
 
   // STATS
@@ -327,5 +370,49 @@ class ApiService {
   Future<Map<String, dynamic>> getGroupStats(int groupId) async {
     final response = await _dio.get('stats/groups/$groupId/');
     return response.data as Map<String, dynamic>;
+  }
+
+  // NOTIFICATIONS
+  // Note: Backend doesn't have notifications endpoint yet
+  // Using at-risk students as notification source for now
+  Future<List<NotificationModel>> getNotifications() async {
+    try {
+      // Try to get notifications from backend
+      final response = await _dio.get('notifications/');
+      final List list = _parseListResponse(response.data);
+      return list.map((e) => NotificationModel.fromJson(e)).toList();
+    } on DioException catch (e) {
+      // If no notifications endpoint, create from at-risk students
+      if (e.response?.statusCode == 404) {
+        return _generateNotificationsFromAtRisk();
+      }
+      rethrow;
+    }
+  }
+
+  // Generate notifications from at-risk students (fallback)
+  Future<List<NotificationModel>> _generateNotificationsFromAtRisk() async {
+    final atRiskStudents = await getAtRiskStudents();
+    final notifications = <NotificationModel>[];
+
+    for (final student in atRiskStudents) {
+      notifications.add(NotificationModel(
+        id: student.id,
+        title: 'Xavf ostidagi o\'quvchi',
+        message: '${student.name} - xavf darajasi yuqori. Darhol yordam kerak!',
+        type: NotificationType.atRisk,
+        isRead: false,
+        createdAt: DateTime.now(),
+        studentId: student.id,
+        groupId: student.groupId,
+        courseId: student.courseId,
+      ));
+    }
+
+    return notifications;
+  }
+
+  int getUnreadNotificationCount(List<NotificationModel> notifications) {
+    return notifications.where((n) => !n.isRead).length;
   }
 }

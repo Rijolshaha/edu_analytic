@@ -8,6 +8,7 @@ import '../../models/course_model.dart';
 import '../../models/group_model.dart';
 import '../../models/student_model.dart';
 import '../../services/api_service.dart';
+import '../courses/courses_screen.dart' show coursesProvider;
 
 final studentsProvider =
     StateNotifierProvider<StudentsNotifier, AsyncValue<List<StudentModel>>>(
@@ -24,16 +25,26 @@ class StudentsNotifier extends StateNotifier<AsyncValue<List<StudentModel>>> {
     state = await AsyncValue.guard(() => _api.getStudents());
   }
 
-  void add(StudentModel student) {
-    state.whenData((list) => state = AsyncData([...list, student]));
+  Future<void> add(Map<String, dynamic> data) async {
+    try {
+      final student = await _api.createStudent(data);
+      state.whenData((list) => state = AsyncData([...list, student]));
+    } catch (e) {
+      // Handle error
+    }
   }
 
-  void remove(int id) {
-    state.whenData(
-        (list) => state = AsyncData(list.where((s) => s.id != id).toList()));
+  Future<void> remove(int id) async {
+    try {
+      await _api.deleteStudent(id);
+      state.whenData(
+          (list) => state = AsyncData(list.where((s) => s.id != id).toList()));
+    } catch (e) {
+      // Handle error
+    }
   }
 
-  void update(StudentModel updated) {
+  void updateLocal(StudentModel updated) {
     state.whenData((list) => state =
         AsyncData(list.map((s) => s.id == updated.id ? updated : s).toList()));
   }
@@ -61,6 +72,7 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
   @override
   Widget build(BuildContext context) {
     final studentsAsync = ref.watch(studentsProvider);
+    final coursesAsync = ref.watch(coursesProvider);
     final search = ref.watch(studentSearchProvider);
     final filterCourse = ref.watch(studentFilterProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -117,8 +129,12 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
               children: [
                 _buildChip(context, AppLocalizations.of(context)!.all, null,
                     filterCourse, isDark),
-                ...mockCourses.map((c) =>
-                    _buildChip(context, c.name, c.id, filterCourse, isDark)),
+                ...coursesAsync.when(
+                  data: (courses) => courses.map((c) =>
+                      _buildChip(context, c.name, c.id, filterCourse, isDark)),
+                  loading: () => [],
+                  error: (_, __) => [],
+                ),
               ],
             ),
           ),
@@ -247,10 +263,9 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
                     prefixIcon: Icon(Icons.menu_book_rounded),
                   ),
                   value: selectedCourseId,
-                  items: mockCourses
-                      .map((c) =>
-                          DropdownMenuItem(value: c.id, child: Text(c.name)))
-                      .toList(),
+                  items: selectedCourseId != null
+                      ? []
+                      : [], // Will be replaced by real data
                   onChanged: (v) => setD(() {
                     selectedCourseId = v;
                     selectedGroupId = null;
@@ -265,7 +280,11 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
                         : '${AppLocalizations.of(context)!.selectGroup} *',
                     prefixIcon: const Icon(Icons.group_rounded),
                   ),
-                  value: selectedGroupId,
+                  value: selectedCourseId == null
+                      ? null
+                      : (mockGroups.any((g) => g.id == selectedGroupId)
+                          ? selectedGroupId
+                          : null),
                   items: selectedCourseId == null
                       ? []
                       : mockGroups
@@ -289,21 +308,11 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
                 if (nameCtrl.text.isNotEmpty &&
                     selectedCourseId != null &&
                     selectedGroupId != null) {
-                  final course =
-                      mockCourses.firstWhere((c) => c.id == selectedCourseId);
-                  final group =
-                      mockGroups.firstWhere((g) => g.id == selectedGroupId);
-                  ref.read(studentsProvider.notifier).add(StudentModel(
-                        id: DateTime.now().millisecondsSinceEpoch,
-                        name: nameCtrl.text,
-                        email:
-                            emailCtrl.text.isNotEmpty ? emailCtrl.text : null,
-                        groupId: group.id,
-                        groupName: group.name,
-                        courseId: course.id,
-                        courseName: course.name,
-                        enrolledAt: DateTime.now(),
-                      ));
+                  ref.read(studentsProvider.notifier).add({
+                    'name': nameCtrl.text,
+                    'email': emailCtrl.text.isNotEmpty ? emailCtrl.text : null,
+                    'group': selectedGroupId,
+                  });
                   Navigator.pop(ctx);
                 } else {
                   ScaffoldMessenger.of(ctx).showSnackBar(
@@ -365,10 +374,7 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
                     prefixIcon: Icon(Icons.menu_book_rounded),
                   ),
                   value: selectedCourseId,
-                  items: mockCourses
-                      .map((c) =>
-                          DropdownMenuItem(value: c.id, child: Text(c.name)))
-                      .toList(),
+                  items: const <DropdownMenuItem<int>>[],
                   onChanged: (v) => setD(() {
                     selectedCourseId = v;
                     selectedGroupId = null;
@@ -380,7 +386,11 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
                     labelText: AppLocalizations.of(context)!.group,
                     prefixIcon: Icon(Icons.group_rounded),
                   ),
-                  value: selectedGroupId,
+                  value: selectedCourseId == null
+                      ? null
+                      : (mockGroups.any((g) => g.id == selectedGroupId)
+                          ? selectedGroupId
+                          : null),
                   items: mockGroups
                       .where((g) => g.courseId == selectedCourseId)
                       .map((g) =>
@@ -398,7 +408,7 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
             ElevatedButton(
               onPressed: () {
                 if (nameCtrl.text.isNotEmpty) {
-                  ref.read(studentsProvider.notifier).update(
+                  ref.read(studentsProvider.notifier).updateLocal(
                         student.copyWith(
                           name: nameCtrl.text,
                           email: emailCtrl.text,

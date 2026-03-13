@@ -1,44 +1,62 @@
 // lib/screens/statistics/statistics_screen.dart
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/constants/app_colors.dart';
 import '../../l10n/app_localizations.dart';
-import '../../models/course_model.dart';
-import '../../models/group_model.dart';
+import '../../providers/data_providers.dart';
 import '../../models/student_model.dart';
 
-class StatisticsScreen extends StatelessWidget {
+class StatisticsScreen extends ConsumerWidget {
   const StatisticsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final studentsAsync = ref.watch(studentsProvider);
+    final coursesAsync = ref.watch(coursesProvider);
+    final groupsAsync = ref.watch(groupsProvider);
 
     return Scaffold(
-
       appBar: AppBar(title: Text(AppLocalizations.of(context)!.statistics)),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _sectionTitle(context, AppLocalizations.of(context)!.studentPerformance),
-            const SizedBox(height: 14),
-            _buildStudentPerformanceChart(context, isDark),
-            const SizedBox(height: 28),
-            _sectionTitle(context, AppLocalizations.of(context)!.coursePerformance),
-            const SizedBox(height: 14),
-            _buildCourseChart(context, isDark),
-            const SizedBox(height: 28),
-            _sectionTitle(context, AppLocalizations.of(context)!.groupStatistics),
-            const SizedBox(height: 14),
-            _buildGroupStats(context, isDark),
-            const SizedBox(height: 28),
-            _sectionTitle(context, AppLocalizations.of(context)!.riskDistribution),
-            const SizedBox(height: 14),
-            _buildRiskPieChart(context, isDark),
-            const SizedBox(height: 40),
-          ],
+      body: studentsAsync.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('Xatolik: $e')),
+        data: (students) => coursesAsync.when(
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('Xatolik: $e')),
+          data: (courses) => groupsAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(child: Text('Xatolik: $e')),
+            data: (groups) => SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _sectionTitle(context,
+                      AppLocalizations.of(context)!.studentPerformance),
+                  const SizedBox(height: 14),
+                  _buildStudentPerformanceChart(context, isDark, students),
+                  const SizedBox(height: 28),
+                  _sectionTitle(
+                      context, AppLocalizations.of(context)!.coursePerformance),
+                  const SizedBox(height: 14),
+                  _buildCourseChart(context, isDark, courses),
+                  const SizedBox(height: 28),
+                  _sectionTitle(
+                      context, AppLocalizations.of(context)!.groupStatistics),
+                  const SizedBox(height: 14),
+                  _buildGroupStats(context, isDark, groups),
+                  const SizedBox(height: 28),
+                  _sectionTitle(
+                      context, AppLocalizations.of(context)!.riskDistribution),
+                  const SizedBox(height: 14),
+                  _buildRiskPieChart(context, isDark, students),
+                  const SizedBox(height: 40),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -52,9 +70,8 @@ class StatisticsScreen extends StatelessWidget {
             ?.copyWith(fontWeight: FontWeight.w700));
   }
 
-  Widget _buildStudentPerformanceChart(BuildContext context, bool isDark) {
-    final students = mockStudents.take(8).toList();
-
+  Widget _buildStudentPerformanceChart(
+      BuildContext context, bool isDark, List students) {
     return Container(
       padding: const EdgeInsets.all(20),
       height: 260,
@@ -121,10 +138,10 @@ class StatisticsScreen extends StatelessWidget {
                                   : AppColors.lightTextSecondary)),
                     ),
                   ),
-                  topTitles:
-                  const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles:
-                  const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                  topTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false)),
+                  rightTitles: const AxisTitles(
+                      sideTitles: SideTitles(showTitles: false)),
                 ),
                 borderData: FlBorderData(show: false),
                 gridData: FlGridData(
@@ -132,9 +149,8 @@ class StatisticsScreen extends StatelessWidget {
                   drawVerticalLine: false,
                   horizontalInterval: 25,
                   getDrawingHorizontalLine: (v) => FlLine(
-                    color: isDark
-                        ? AppColors.darkBorder
-                        : AppColors.lightBorder,
+                    color:
+                        isDark ? AppColors.darkBorder : AppColors.lightBorder,
                     strokeWidth: 1,
                   ),
                 ),
@@ -143,8 +159,8 @@ class StatisticsScreen extends StatelessWidget {
                   final color = score >= 70
                       ? AppColors.highPerf
                       : score >= 40
-                      ? AppColors.mediumPerf
-                      : AppColors.lowPerf;
+                          ? AppColors.mediumPerf
+                          : AppColors.lowPerf;
                   return BarChartGroupData(
                     x: e.key,
                     barRods: [
@@ -166,7 +182,7 @@ class StatisticsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildCourseChart(BuildContext context, bool isDark) {
+  Widget _buildCourseChart(BuildContext context, bool isDark, List courses) {
     return Container(
       padding: const EdgeInsets.all(20),
       height: 240,
@@ -187,9 +203,8 @@ class StatisticsScreen extends StatelessWidget {
                 maxY: 100,
                 lineBarsData: [
                   LineChartBarData(
-                    spots: mockCourses.asMap().entries.map((e) {
-                      return FlSpot(
-                          e.key.toDouble(), e.value.averageScore);
+                    spots: courses.asMap().entries.map((e) {
+                      return FlSpot(e.key.toDouble(), e.value.averageScore);
                     }).toList(),
                     isCurved: true,
                     color: AppColors.primary,
@@ -197,11 +212,11 @@ class StatisticsScreen extends StatelessWidget {
                     dotData: FlDotData(
                       getDotPainter: (spot, percent, bar, index) =>
                           FlDotCirclePainter(
-                            radius: 5,
-                            color: AppColors.primary,
-                            strokeWidth: 2,
-                            strokeColor: Colors.white,
-                          ),
+                        radius: 5,
+                        color: AppColors.primary,
+                        strokeWidth: 2,
+                        strokeColor: Colors.white,
+                      ),
                     ),
                     belowBarData: BarAreaData(
                       show: true,
@@ -215,12 +230,12 @@ class StatisticsScreen extends StatelessWidget {
                       showTitles: true,
                       getTitlesWidget: (v, meta) {
                         final i = v.toInt();
-                        if (i < 0 || i >= mockCourses.length) {
+                        if (i < 0 || i >= courses.length) {
                           return const SizedBox();
                         }
                         return Padding(
                           padding: const EdgeInsets.only(top: 6),
-                          child: Text(mockCourses[i].name,
+                          child: Text(courses[i].name,
                               style: TextStyle(
                                   fontSize: 9,
                                   color: isDark
@@ -253,9 +268,8 @@ class StatisticsScreen extends StatelessWidget {
                   drawVerticalLine: false,
                   horizontalInterval: 25,
                   getDrawingHorizontalLine: (v) => FlLine(
-                    color: isDark
-                        ? AppColors.darkBorder
-                        : AppColors.lightBorder,
+                    color:
+                        isDark ? AppColors.darkBorder : AppColors.lightBorder,
                     strokeWidth: 1,
                   ),
                 ),
@@ -267,14 +281,14 @@ class StatisticsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildGroupStats(BuildContext context, bool isDark) {
+  Widget _buildGroupStats(BuildContext context, bool isDark, List groups) {
     return Column(
-      children: mockGroups.take(5).map((group) {
+      children: groups.take(5).map((group) {
         final scoreColor = group.averageScore >= 75
             ? AppColors.success
             : group.averageScore >= 50
-            ? AppColors.warning
-            : AppColors.danger;
+                ? AppColors.warning
+                : AppColors.danger;
 
         return Container(
           margin: const EdgeInsets.only(bottom: 10),
@@ -312,8 +326,7 @@ class StatisticsScreen extends StatelessWidget {
                       borderRadius: BorderRadius.circular(4),
                       child: LinearProgressIndicator(
                         value: group.averageScore / 100,
-                        backgroundColor:
-                        scoreColor.withOpacity(0.12),
+                        backgroundColor: scoreColor.withOpacity(0.12),
                         valueColor: AlwaysStoppedAnimation(scoreColor),
                         minHeight: 8,
                       ),
@@ -328,11 +341,14 @@ class StatisticsScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildRiskPieChart(BuildContext context, bool isDark) {
-    final high = mockStudents.where((s) => s.scores.level == PerformanceLevel.high).length;
-    final medium = mockStudents.where((s) => s.scores.level == PerformanceLevel.medium).length;
-    final low = mockStudents.where((s) => s.scores.level == PerformanceLevel.low).length;
-    final total = mockStudents.length;
+  Widget _buildRiskPieChart(BuildContext context, bool isDark, List students) {
+    final high =
+        students.where((s) => s.scores.level == PerformanceLevel.high).length;
+    final medium =
+        students.where((s) => s.scores.level == PerformanceLevel.medium).length;
+    final low =
+        students.where((s) => s.scores.level == PerformanceLevel.low).length;
+    final total = students.length;
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -409,15 +425,12 @@ class StatisticsScreen extends StatelessWidget {
         Container(
             width: 12,
             height: 12,
-            decoration:
-            BoxDecoration(color: color, shape: BoxShape.circle)),
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
         const SizedBox(height: 4),
         Text(label, style: const TextStyle(fontSize: 12)),
         Text(pct,
             style: TextStyle(
-                color: color,
-                fontWeight: FontWeight.w700,
-                fontSize: 13)),
+                color: color, fontWeight: FontWeight.w700, fontSize: 13)),
       ],
     );
   }

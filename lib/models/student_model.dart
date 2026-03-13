@@ -73,13 +73,13 @@ class StudentModel extends Equatable {
   bool get isAtRisk => scores.level == PerformanceLevel.low;
 
   factory StudentModel.fromJson(Map<String, dynamic> json) => StudentModel(
-        id: json['id'],
-        name: json['name'],
+        id: json['id'] as int? ?? 0,
+        name: json['name'] ?? '',
         email: json['email'],
         avatar: json['avatar'],
-        groupId: json['group_id'],
+        groupId: json['group_id'] as int? ?? 0,
         groupName: json['group_name'] ?? '',
-        courseId: json['course_id'],
+        courseId: json['course_id'] as int? ?? 0,
         courseName: json['course_name'] ?? '',
         scores: StudentScores.fromJson(json['scores'] ?? {}),
         enrolledAt: _parseDateTime(json['enrolled_at']),

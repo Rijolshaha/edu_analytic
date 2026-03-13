@@ -25,7 +25,7 @@ class GroupModel extends Equatable {
   factory GroupModel.fromJson(Map<String, dynamic> json) => GroupModel(
         id: json['id'] as int? ?? 0,
         name: json['name'] ?? '',
-        courseId: json['course_id'] as int? ?? 0,
+        courseId: (json['course_id'] ?? json['course']) as int? ?? 0,
         courseName: json['course_name'] ?? '',
         studentCount: json['student_count'] as int? ?? 0,
         averageScore: (json['average_score'] ?? 0.0).toDouble(),

@@ -63,23 +63,25 @@ class PredictionResult extends Equatable {
 
   factory PredictionResult.fromJson(Map<String, dynamic> json) {
     PredictionLevel level;
-    final levelStr = json['level'] ?? '';
-    if (levelStr.contains('High')) {
+    final levelStr = (json['level'] ?? '').toString().toLowerCase();
+    if (levelStr.contains('high') || levelStr == 'yuqori') {
       level = PredictionLevel.high;
-    } else if (levelStr.contains('Medium')) {
+    } else if (levelStr.contains('medium') || levelStr == 'o\'rta') {
       level = PredictionLevel.medium;
     } else {
       level = PredictionLevel.low;
     }
 
     return PredictionResult(
-      studentId: json['student_id'],
+      studentId: json['student_id'] ?? 0,
       studentName: json['student_name'] ?? '',
       level: level,
       riskPercentage: (json['risk_percentage'] ?? 0).toDouble(),
       predictedScore: (json['predicted_score'] ?? 0).toDouble(),
       recommendation: json['recommendation'] ?? '',
-      predictedAt: DateTime.parse(json['predicted_at']),
+      predictedAt: json['predicted_at'] != null
+          ? DateTime.tryParse(json['predicted_at'].toString()) ?? DateTime.now()
+          : DateTime.now(),
     );
   }
 

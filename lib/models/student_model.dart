@@ -77,7 +77,7 @@ class StudentModel extends Equatable {
         name: json['name'] ?? '',
         email: json['email'],
         avatar: json['avatar'],
-        groupId: json['group_id'] as int? ?? 0,
+        groupId: (json['group_id'] ?? json['group']) as int? ?? 0,
         groupName: json['group_name'] ?? '',
         courseId: json['course_id'] as int? ?? 0,
         courseName: json['course_name'] ?? '',

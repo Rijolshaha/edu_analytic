@@ -72,6 +72,8 @@ class StatisticsScreen extends ConsumerWidget {
 
   Widget _buildStudentPerformanceChart(
       BuildContext context, bool isDark, List students) {
+    // Ko'p talabalar bo'lsa chartni o'qish qiyin - max 15 ta ko'rsatamiz
+    final displayStudents = students.length > 15 ? students.sublist(0, 15) : students;
     return Container(
       padding: const EdgeInsets.all(20),
       height: 260,
@@ -79,7 +81,9 @@ class StatisticsScreen extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Ball taqsimoti',
+          Text(students.length > 15
+              ? 'Ball taqsimoti (dastlabki 15 ta)'
+              : 'Ball taqsimoti',
               style: Theme.of(context)
                   .textTheme
                   .titleMedium
@@ -108,13 +112,13 @@ class StatisticsScreen extends ConsumerWidget {
                       showTitles: true,
                       getTitlesWidget: (value, meta) {
                         final i = value.toInt();
-                        if (i < 0 || i >= students.length) {
+                        if (i < 0 || i >= displayStudents.length) {
                           return const SizedBox();
                         }
                         return Padding(
                           padding: const EdgeInsets.only(top: 6),
                           child: Text(
-                            students[i].name.split(' ')[0],
+                            displayStudents[i].name.split(' ')[0],
                             style: TextStyle(
                               fontSize: 9,
                               color: isDark
@@ -154,7 +158,7 @@ class StatisticsScreen extends ConsumerWidget {
                     strokeWidth: 1,
                   ),
                 ),
-                barGroups: students.asMap().entries.map((e) {
+                barGroups: displayStudents.asMap().entries.map((e) {
                   final score = e.value.scores.overall;
                   final color = score >= 70
                       ? AppColors.highPerf
@@ -349,6 +353,13 @@ class StatisticsScreen extends ConsumerWidget {
     final low =
         students.where((s) => s.scores.level == PerformanceLevel.low).length;
     final total = students.length;
+    if (total == 0) {
+      return Container(
+        padding: const EdgeInsets.all(32),
+        decoration: _cardDeco(isDark),
+        child: const Center(child: Text('Ma\'lumot yo\'q')),
+      );
+    }
 
     return Container(
       padding: const EdgeInsets.all(20),

@@ -9,6 +9,7 @@ import '../../models/group_model.dart';
 import '../../models/student_model.dart';
 import '../../services/api_service.dart';
 import '../courses/courses_screen.dart' show coursesProvider;
+import '../groups/groups_screen.dart' show groupsProvider;
 
 final studentsProvider =
     StateNotifierProvider<StudentsNotifier, AsyncValue<List<StudentModel>>>(
@@ -44,9 +45,19 @@ class StudentsNotifier extends StateNotifier<AsyncValue<List<StudentModel>>> {
     }
   }
 
-  void updateLocal(StudentModel updated) {
-    state.whenData((list) => state =
-        AsyncData(list.map((s) => s.id == updated.id ? updated : s).toList()));
+  Future<void> updateLocal(StudentModel updated) async {
+    try {
+      await _api.updateStudent(updated.id, {
+        'name': updated.name,
+        'email': updated.email,
+      });
+      state.whenData((list) => state =
+          AsyncData(list.map((s) => s.id == updated.id ? updated : s).toList()));
+    } catch (e) {
+      // Local update saqlab qolamiz (API xatolik bo'lsa)
+      state.whenData((list) => state =
+          AsyncData(list.map((s) => s.id == updated.id ? updated : s).toList()));
+    }
   }
 }
 
@@ -226,109 +237,136 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
 
     showDialog(
       context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setD) => AlertDialog(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-          title: Text(AppLocalizations.of(context)!.newStudent,
-              style: TextStyle(fontWeight: FontWeight.w700)),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Ism
-                TextField(
-                  controller: nameCtrl,
-                  decoration: InputDecoration(
-                    labelText: '${AppLocalizations.of(context)!.studentName} *',
-                    prefixIcon: Icon(Icons.person_outline_rounded),
-                  ),
+      builder: (ctx) => Consumer(
+        builder: (ctx, ref2, _) {
+          final coursesAsync = ref2.watch(coursesProvider);
+          final groupsAsync = ref2.watch(groupsProvider);
+          return StatefulBuilder(
+            builder: (ctx, setD) => AlertDialog(
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20)),
+              title: Text(AppLocalizations.of(context)!.newStudent,
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Ism
+                    TextField(
+                      controller: nameCtrl,
+                      decoration: InputDecoration(
+                        labelText:
+                            '${AppLocalizations.of(context)!.studentName} *',
+                        prefixIcon:
+                            const Icon(Icons.person_outline_rounded),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // Email
+                    TextField(
+                      controller: emailCtrl,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: InputDecoration(
+                        labelText:
+                            AppLocalizations.of(context)!.emailOptional,
+                        prefixIcon: const Icon(Icons.email_outlined),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    // Kurs
+                    coursesAsync.when(
+                      data: (courses) => DropdownButtonFormField<int>(
+                        decoration: InputDecoration(
+                          labelText:
+                              '${AppLocalizations.of(context)!.selectCourse} *',
+                          prefixIcon: const Icon(Icons.menu_book_rounded),
+                        ),
+                        value: selectedCourseId,
+                        items: courses
+                            .map((c) => DropdownMenuItem(
+                                value: c.id, child: Text(c.name)))
+                            .toList(),
+                        onChanged: (v) => setD(() {
+                          selectedCourseId = v;
+                          selectedGroupId = null;
+                        }),
+                      ),
+                      loading: () => const LinearProgressIndicator(),
+                      error: (e, _) => Text('Xatolik: $e'),
+                    ),
+                    const SizedBox(height: 12),
+                    // Guruh
+                    groupsAsync.when(
+                      data: (groups) {
+                        final filtered = selectedCourseId == null
+                            ? <GroupModel>[]
+                            : groups
+                                .where(
+                                    (g) => g.courseId == selectedCourseId)
+                                .toList();
+                        // agar tanlangan guruh filtrlangan listda yo'q bo'lsa reset
+                        if (selectedGroupId != null &&
+                            !filtered.any((g) => g.id == selectedGroupId)) {
+                          selectedGroupId = null;
+                        }
+                        return DropdownButtonFormField<int>(
+                          decoration: InputDecoration(
+                            labelText: selectedCourseId == null
+                                ? AppLocalizations.of(context)!
+                                    .selectGroupFirst
+                                : '${AppLocalizations.of(context)!.selectGroup} *',
+                            prefixIcon: const Icon(Icons.group_rounded),
+                          ),
+                          value: selectedGroupId,
+                          items: filtered
+                              .map((g) => DropdownMenuItem(
+                                  value: g.id, child: Text(g.name)))
+                              .toList(),
+                          onChanged: selectedCourseId == null
+                              ? null
+                              : (v) => setD(() => selectedGroupId = v),
+                        );
+                      },
+                      loading: () => const LinearProgressIndicator(),
+                      error: (e, _) => Text('Xatolik: $e'),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 12),
-                // Email
-                TextField(
-                  controller: emailCtrl,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: InputDecoration(
-                    labelText: AppLocalizations.of(context)!.emailOptional,
-                    prefixIcon: Icon(Icons.email_outlined),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                // Kurs
-                DropdownButtonFormField<int>(
-                  decoration: InputDecoration(
-                    labelText:
-                        '${AppLocalizations.of(context)!.selectCourse} *',
-                    prefixIcon: Icon(Icons.menu_book_rounded),
-                  ),
-                  value: selectedCourseId,
-                  items: selectedCourseId != null
-                      ? []
-                      : [], // Will be replaced by real data
-                  onChanged: (v) => setD(() {
-                    selectedCourseId = v;
-                    selectedGroupId = null;
-                  }),
-                ),
-                const SizedBox(height: 12),
-                // Guruh (kurs tanlanganidan keyin)
-                DropdownButtonFormField<int>(
-                  decoration: InputDecoration(
-                    labelText: selectedCourseId == null
-                        ? AppLocalizations.of(context)!.selectGroupFirst
-                        : '${AppLocalizations.of(context)!.selectGroup} *',
-                    prefixIcon: const Icon(Icons.group_rounded),
-                  ),
-                  value: selectedCourseId == null
-                      ? null
-                      : (mockGroups.any((g) => g.id == selectedGroupId)
-                          ? selectedGroupId
-                          : null),
-                  items: selectedCourseId == null
-                      ? []
-                      : mockGroups
-                          .where((g) => g.courseId == selectedCourseId)
-                          .map((g) => DropdownMenuItem(
-                              value: g.id, child: Text(g.name)))
-                          .toList(),
-                  onChanged: selectedCourseId == null
-                      ? null
-                      : (v) => setD(() => selectedGroupId = v),
+              ),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: Text(AppLocalizations.of(context)!.cancel)),
+                ElevatedButton(
+                  onPressed: () {
+                    if (nameCtrl.text.isNotEmpty &&
+                        selectedCourseId != null &&
+                        selectedGroupId != null) {
+                      ref.read(studentsProvider.notifier).add({
+                        'name': nameCtrl.text,
+                        'email': emailCtrl.text.isNotEmpty
+                            ? emailCtrl.text
+                            : null,
+                        'group': selectedGroupId,
+                      });
+                      Navigator.pop(ctx);
+                    } else {
+                      ScaffoldMessenger.of(ctx).showSnackBar(
+                        SnackBar(
+                          content: Text(
+                              AppLocalizations.of(context)!.requiredFields),
+                          backgroundColor: const Color(0xFFEF4444),
+                          duration: const Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  },
+                  child: Text(AppLocalizations.of(context)!.add),
                 ),
               ],
             ),
-          ),
-          actions: [
-            TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: Text(AppLocalizations.of(context)!.cancel)),
-            ElevatedButton(
-              onPressed: () {
-                if (nameCtrl.text.isNotEmpty &&
-                    selectedCourseId != null &&
-                    selectedGroupId != null) {
-                  ref.read(studentsProvider.notifier).add({
-                    'name': nameCtrl.text,
-                    'email': emailCtrl.text.isNotEmpty ? emailCtrl.text : null,
-                    'group': selectedGroupId,
-                  });
-                  Navigator.pop(ctx);
-                } else {
-                  ScaffoldMessenger.of(ctx).showSnackBar(
-                    SnackBar(
-                      content:
-                          Text(AppLocalizations.of(context)!.requiredFields),
-                      backgroundColor: Color(0xFFEF4444),
-                      duration: Duration(seconds: 2),
-                    ),
-                  );
-                }
-              },
-              child: Text(AppLocalizations.of(context)!.add),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -368,35 +406,63 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<int>(
-                  decoration: const InputDecoration(
-                    labelText: 'Kurs',
-                    prefixIcon: Icon(Icons.menu_book_rounded),
-                  ),
-                  value: selectedCourseId,
-                  items: const <DropdownMenuItem<int>>[],
-                  onChanged: (v) => setD(() {
-                    selectedCourseId = v;
-                    selectedGroupId = null;
-                  }),
-                ),
-                const SizedBox(height: 12),
-                DropdownButtonFormField<int>(
-                  decoration: InputDecoration(
-                    labelText: AppLocalizations.of(context)!.group,
-                    prefixIcon: Icon(Icons.group_rounded),
-                  ),
-                  value: selectedCourseId == null
-                      ? null
-                      : (mockGroups.any((g) => g.id == selectedGroupId)
-                          ? selectedGroupId
-                          : null),
-                  items: mockGroups
-                      .where((g) => g.courseId == selectedCourseId)
-                      .map((g) =>
-                          DropdownMenuItem(value: g.id, child: Text(g.name)))
-                      .toList(),
-                  onChanged: (v) => setD(() => selectedGroupId = v),
+                Consumer(
+                  builder: (ctx, ref2, _) {
+                    final coursesAsync = ref2.watch(coursesProvider);
+                    final groupsAsync = ref2.watch(groupsProvider);
+                    return Column(
+                      children: [
+                        // Kurs
+                        coursesAsync.when(
+                          data: (courses) => DropdownButtonFormField<int>(
+                            decoration: const InputDecoration(
+                              labelText: 'Kurs',
+                              prefixIcon: Icon(Icons.menu_book_rounded),
+                            ),
+                            value: selectedCourseId,
+                            items: courses
+                                .map((c) => DropdownMenuItem(
+                                    value: c.id, child: Text(c.name)))
+                                .toList(),
+                            onChanged: (v) => setD(() {
+                              selectedCourseId = v;
+                              selectedGroupId = null;
+                            }),
+                          ),
+                          loading: () => const LinearProgressIndicator(),
+                          error: (e, _) => Text('Xatolik: $e'),
+                        ),
+                        const SizedBox(height: 12),
+                        // Guruh
+                        groupsAsync.when(
+                          data: (groups) {
+                            final filtered = selectedCourseId == null
+                                ? <GroupModel>[]
+                                : groups
+                                    .where((g) =>
+                                        g.courseId == selectedCourseId)
+                                    .toList();
+                            return DropdownButtonFormField<int>(
+                              decoration: InputDecoration(
+                                labelText: AppLocalizations.of(context)!.group,
+                                prefixIcon: const Icon(Icons.group_rounded),
+                              ),
+                              value: filtered.any((g) => g.id == selectedGroupId)
+                                  ? selectedGroupId
+                                  : null,
+                              items: filtered
+                                  .map((g) => DropdownMenuItem(
+                                      value: g.id, child: Text(g.name)))
+                                  .toList(),
+                              onChanged: (v) => setD(() => selectedGroupId = v),
+                            );
+                          },
+                          loading: () => const LinearProgressIndicator(),
+                          error: (e, _) => Text('Xatolik: $e'),
+                        ),
+                      ],
+                    );
+                  },
                 ),
               ],
             ),
@@ -406,15 +472,15 @@ class _StudentsScreenState extends ConsumerState<StudentsScreen> {
                 onPressed: () => Navigator.pop(ctx),
                 child: Text(AppLocalizations.of(context)!.cancel)),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 if (nameCtrl.text.isNotEmpty) {
-                  ref.read(studentsProvider.notifier).updateLocal(
+                  await ref.read(studentsProvider.notifier).updateLocal(
                         student.copyWith(
                           name: nameCtrl.text,
                           email: emailCtrl.text,
                         ),
                       );
-                  Navigator.pop(ctx);
+                  if (ctx.mounted) Navigator.pop(ctx);
                 }
               },
               child: Text(AppLocalizations.of(context)!.save),

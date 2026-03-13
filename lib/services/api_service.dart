@@ -227,7 +227,10 @@ class ApiService {
 
   Future<void> logout() async {
     try {
-      await _dio.post('auth/logout/');
+      final refresh = await _authService.getRefreshToken();
+      if (refresh != null) {
+        await _dio.post('auth/logout/', data: {'refresh': refresh});
+      }
     } catch (_) {}
     await _authService.logout();
   }

@@ -27,36 +27,82 @@ class GroupsNotifier extends StateNotifier<AsyncValue<List<GroupModel>>> {
   }
 
   Future<void> add(Map<String, dynamic> data) async {
-    final group = await _api.createGroup(data);
-    state.whenData((list) => state = AsyncData([...list, group]));
+    try {
+      final group = await _api.createGroup(data);
+      state.whenData((list) => state = AsyncData([...list, group]));
+    } catch (e) {
+      debugPrint('Group qo\'shish xatosi: $e');
+    }
   }
 
-  void remove(int id) {
-    state.whenData(
-        (list) => state = AsyncData(list.where((g) => g.id != id).toList()));
+  Future<void> remove(int id) async {
+    try {
+      await _api.deleteGroup(id);
+      state.whenData(
+          (list) => state = AsyncData(list.where((g) => g.id != id).toList()));
+    } catch (e) {
+      debugPrint('Group o\'chirish xatosi: $e');
+    }
   }
 
-  void updateLocal(GroupModel updated) {
-    state.whenData((list) => state =
-        AsyncData(list.map((g) => g.id == updated.id ? updated : g).toList()));
+  Future<void> updateLocal(GroupModel updated) async {
+    try {
+      await _api.updateGroup(updated.id, {'name': updated.name});
+      state.whenData((list) => state = AsyncData(
+          list.map((g) => g.id == updated.id ? updated : g).toList()));
+    } catch (e) {
+      debugPrint('Group yangilash xatosi: $e');
+    }
   }
 }
 
-// Guruh o'quvchilari uchun provider
+// Guruh o'quvchilari uchun REAL API provider
 final groupStudentsProvider = StateNotifierProvider.family<
     GroupStudentsNotifier,
-    List<StudentModel>,
-    int>((ref, groupId) => GroupStudentsNotifier(groupId));
+    AsyncValue<List<StudentModel>>,
+    int>((ref, groupId) => GroupStudentsNotifier(
+        ref.read(apiServiceProvider), groupId));
 
-class GroupStudentsNotifier extends StateNotifier<List<StudentModel>> {
+class GroupStudentsNotifier
+    extends StateNotifier<AsyncValue<List<StudentModel>>> {
+  final ApiService _api;
   final int groupId;
-  GroupStudentsNotifier(this.groupId)
-      : super(mockStudents.where((s) => s.groupId == groupId).toList());
 
-  void add(StudentModel student) => state = [...state, student];
-  void remove(int id) => state = state.where((s) => s.id != id).toList();
-  void update(StudentModel updated) =>
-      state = state.map((s) => s.id == updated.id ? updated : s).toList();
+  GroupStudentsNotifier(this._api, this.groupId)
+      : super(const AsyncLoading()) {
+    load();
+  }
+
+  Future<void> load() async {
+    state = const AsyncLoading();
+    state = await AsyncValue.guard(
+        () => _api.getStudents(groupId: groupId));
+  }
+
+  Future<void> add(Map<String, dynamic> data) async {
+    try {
+      final student = await _api.createStudent(data);
+      state.whenData(
+          (list) => state = AsyncData([...list, student]));
+    } catch (e) {
+      // xatolik
+    }
+  }
+
+  Future<void> remove(int id) async {
+    try {
+      await _api.deleteStudent(id);
+      state.whenData((list) =>
+          state = AsyncData(list.where((s) => s.id != id).toList()));
+    } catch (e) {
+      // xatolik
+    }
+  }
+
+  void update(StudentModel updated) {
+    state.whenData((list) => state = AsyncData(
+        list.map((s) => s.id == updated.id ? updated : s).toList()));
+  }
 }
 
 // ── Screen ─────────────────────────────────────────────────
@@ -305,9 +351,9 @@ class _GroupsScreenState extends ConsumerState<GroupsScreen> {
               child: Text(AppLocalizations.of(context)!.cancel)),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
-            onPressed: () {
-              ref.read(groupsProvider.notifier).remove(group.id);
-              Navigator.pop(ctx);
+            onPressed: () async {
+              await ref.read(groupsProvider.notifier).remove(group.id);
+              if (ctx.mounted) Navigator.pop(ctx);
             },
             child: Text(AppLocalizations.of(context)!.delete),
           ),
@@ -514,12 +560,7 @@ class _GroupStudentsSheetState extends ConsumerState<_GroupStudentsSheet> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final students = ref.watch(groupStudentsProvider(widget.group.id));
-    final filtered = _search.isEmpty
-        ? students
-        : students
-            .where((s) => s.name.toLowerCase().contains(_search.toLowerCase()))
-            .toList();
+    final studentsAsync = ref.watch(groupStudentsProvider(widget.group.id));
 
     return DraggableScrollableSheet(
       initialChildSize: 0.75,
@@ -634,66 +675,99 @@ class _GroupStudentsSheetState extends ConsumerState<_GroupStudentsSheet> {
               ),
             ),
 
-            // Stats
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              child: Row(
-                children: [
-                  _badge('${students.length} o\'quvchi', AppColors.primary,
-                      Icons.people_alt_rounded),
-                  const SizedBox(width: 8),
-                  _badge(
-                      '${students.where((s) => s.isAtRisk).length} xavf ostida',
-                      AppColors.danger,
-                      Icons.warning_amber_rounded),
-                ],
-              ),
-            ),
-
-            const Divider(height: 12),
-
-            // List
+            // Stats + List
             Expanded(
-              child: filtered.isEmpty
-                  ? Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.people_alt_rounded,
-                              size: 48,
-                              color: AppColors.primary.withOpacity(0.3)),
-                          const SizedBox(height: 12),
-                          Text('O\'quvchi topilmadi',
-                              style: Theme.of(context).textTheme.bodyMedium),
-                          const SizedBox(height: 8),
-                          TextButton.icon(
-                            onPressed: () => _showAddStudentDialog(context),
-                            icon: const Icon(Icons.person_add_rounded),
-                            label:
-                                Text(AppLocalizations.of(context)!.addStudent),
-                          ),
-                        ],
+              child: studentsAsync.when(
+                loading: () =>
+                    const Center(child: CircularProgressIndicator()),
+                error: (e, _) =>
+                    Center(child: Text('Xatolik: $e')),
+                data: (students) {
+                  final filtered = _search.isEmpty
+                      ? students
+                      : students
+                          .where((s) => s.name
+                              .toLowerCase()
+                              .contains(_search.toLowerCase()))
+                          .toList();
+                  return Column(
+                    children: [
+                      // Stats
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 6),
+                        child: Row(
+                          children: [
+                            _badge(
+                                '${students.length} o\'quvchi',
+                                AppColors.primary,
+                                Icons.people_alt_rounded),
+                            const SizedBox(width: 8),
+                            _badge(
+                                '${students.where((s) => s.isAtRisk).length} xavf ostida',
+                                AppColors.danger,
+                                Icons.warning_amber_rounded),
+                          ],
+                        ),
                       ),
-                    )
-                  : ListView.builder(
-                      controller: scrollCtrl,
-                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-                      itemCount: filtered.length,
-                      itemBuilder: (ctx, i) => _StudentRow(
-                        student: filtered[i],
-                        isDark: isDark,
-                        onView: () {
-                          Navigator.pop(context);
-                          context.pushNamed('student_detail',
-                              pathParameters: {'id': filtered[i].id.toString()},
-                              extra: filtered[i]);
-                        },
-                        onEdit: () =>
-                            _showEditStudentDialog(context, filtered[i]),
-                        onDelete: () =>
-                            _confirmDeleteStudent(context, filtered[i]),
+                      const Divider(height: 12),
+                      // List
+                      Expanded(
+                        child: filtered.isEmpty
+                            ? Center(
+                                child: Column(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.people_alt_rounded,
+                                        size: 48,
+                                        color: AppColors.primary
+                                            .withOpacity(0.3)),
+                                    const SizedBox(height: 12),
+                                    Text('O\'quvchi topilmadi',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodyMedium),
+                                    const SizedBox(height: 8),
+                                    TextButton.icon(
+                                      onPressed: () =>
+                                          _showAddStudentDialog(context),
+                                      icon: const Icon(
+                                          Icons.person_add_rounded),
+                                      label: Text(AppLocalizations.of(
+                                              context)!
+                                          .addStudent),
+                                    ),
+                                  ],
+                                ),
+                              )
+                            : ListView.builder(
+                                controller: scrollCtrl,
+                                padding: const EdgeInsets.fromLTRB(
+                                    16, 0, 16, 20),
+                                itemCount: filtered.length,
+                                itemBuilder: (ctx, i) => _StudentRow(
+                                  student: filtered[i],
+                                  isDark: isDark,
+                                  onView: () {
+                                    Navigator.pop(context);
+                                    context.pushNamed('student_detail',
+                                        pathParameters: {
+                                          'id': filtered[i].id.toString()
+                                        },
+                                        extra: filtered[i]);
+                                  },
+                                  onEdit: () => _showEditStudentDialog(
+                                      context, filtered[i]),
+                                  onDelete: () => _confirmDeleteStudent(
+                                      context, filtered[i]),
+                                ),
+                              ),
                       ),
-                    ),
+                    ],
+                  );
+                },
+              ),
             ),
           ],
         ),
@@ -755,19 +829,14 @@ class _GroupStudentsSheetState extends ConsumerState<_GroupStudentsSheet> {
           ElevatedButton(
             onPressed: () {
               if (nameCtrl.text.isNotEmpty) {
-                final student = StudentModel(
-                  id: DateTime.now().millisecondsSinceEpoch,
-                  name: nameCtrl.text,
-                  email: emailCtrl.text.isNotEmpty ? emailCtrl.text : null,
-                  groupId: widget.group.id,
-                  groupName: widget.group.name,
-                  courseId: widget.group.courseId,
-                  courseName: widget.group.courseName,
-                  enrolledAt: DateTime.now(),
-                );
                 ref
                     .read(groupStudentsProvider(widget.group.id).notifier)
-                    .add(student);
+                    .add({
+                  'name': nameCtrl.text,
+                  'email':
+                      emailCtrl.text.isNotEmpty ? emailCtrl.text : null,
+                  'group': widget.group.id,
+                });
                 Navigator.pop(dCtx);
               }
             },
@@ -839,11 +908,11 @@ class _GroupStudentsSheetState extends ConsumerState<_GroupStudentsSheet> {
               child: Text(AppLocalizations.of(context)!.cancel)),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.danger),
-            onPressed: () {
-              ref
+            onPressed: () async {
+              await ref
                   .read(groupStudentsProvider(widget.group.id).notifier)
                   .remove(student.id);
-              Navigator.pop(dCtx);
+              if (dCtx.mounted) Navigator.pop(dCtx);
             },
             child: Text(AppLocalizations.of(context)!.delete),
           ),

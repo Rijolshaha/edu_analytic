@@ -37,13 +37,12 @@ class _PredictionScreenState extends ConsumerState<PredictionScreen>
 
   Future<void> _runBatchPrediction() async {
     ref.read(batchLoadingProvider.notifier).state = true;
-    final api = ref.read(apiServiceProvider);
     final results = <PredictionResult>[];
+    try {
+      final api = ref.read(apiServiceProvider);
+      // Students ni to'g'ridan to'g'ri API dan olamiz
+      final students = await api.getStudents();
 
-    // Get real students from API
-    final studentsAsync = ref.read(studentsProvider);
-
-    studentsAsync.whenData((students) async {
       for (final student in students) {
         try {
           final result = await api.predict(PredictionRequest(
@@ -55,13 +54,23 @@ class _PredictionScreenState extends ConsumerState<PredictionScreen>
           ));
           results.add(result);
         } catch (e) {
-          // Skip students that fail
-          debugPrint('Prediction failed for student ${student.name}: $e');
+          debugPrint('Prediction failed for ${student.name}: $e');
         }
       }
       ref.read(batchPredictionsProvider.notifier).state = results;
+    } catch (e) {
+      debugPrint('Batch prediction error: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Xatolik: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } finally {
       ref.read(batchLoadingProvider.notifier).state = false;
-    });
+    }
   }
 
   @override

@@ -51,13 +51,8 @@ class ApiService {
             }
           }
         }
-        // 500 errors - log backend error
         if (error.response?.statusCode == 500) {
-          /*ignore: avoid_print*/
-          print('$tag Backend 500 Error:');
-          /*ignore: avoid_print*/
-          print('$tag URL: ${error.requestOptions.path}');
-          /*ignore: avoid_print*/
+          print('$tag 500 Error: ${error.requestOptions.path}');
           print('$tag Response: ${error.response?.data}');
         }
         return handler.next(error);
@@ -65,11 +60,7 @@ class ApiService {
     ));
   }
 
-  /// Backend response parsing helper
-  /// Supported formats:
-  /// 1. Direct list: [...]
-  /// 2. DRF pagination: {results: [...], count: ...}
-  /// 3. Wrapper: {data: [...], meta: {...}}
+  // ── Response parser ───────────────────────────────────────
   List _parseListResponse(dynamic data) {
     if (data is List) return data;
     if (data is Map) {
@@ -79,21 +70,62 @@ class ApiService {
     return [];
   }
 
-  // AUTH — trailing slash SHART (Django REST Framework pattern)
+  String _getErrorMessage(DioException e) {
+    if (e.response?.statusCode == 500) {
+      return 'Server xatosi. Iltimos, keyinroq qayta urinib ko\'ring.';
+    }
+    if (e.response?.statusCode == 422) {
+      final data = e.response?.data;
+      if (data is Map) {
+        // error.message yoki error.code
+        if (data['error'] is Map) {
+          final err = data['error'] as Map;
+          if (err['message'] is Map) {
+            final msgs = <String>[];
+            (err['message'] as Map).forEach((k, v) {
+              if (v is List) msgs.add('$k: ${v.join(", ")}');
+              else msgs.add('$k: $v');
+            });
+            return msgs.join('\n');
+          }
+          return err['message']?.toString() ?? 'Validatsiya xatosi';
+        }
+        final errors = StringBuffer();
+        data.forEach((k, v) {
+          if (v is List && v.isNotEmpty) errors.write('$k: ${v.join(", ")}. ');
+          else if (v is String) errors.write('$k: $v. ');
+        });
+        if (errors.isNotEmpty) return errors.toString();
+      }
+      return 'Ma\'lumotlarni qayta tekshiring.';
+    }
+    if (e.response?.statusCode == 401 || e.response?.statusCode == 400) {
+      final data = e.response?.data;
+      if (data is Map) {
+        if (data.containsKey('detail')) return data['detail'].toString();
+        if (data.containsKey('message')) return data['message'].toString();
+        if (data['error'] is Map) return (data['error'] as Map)['message']?.toString() ?? 'Xato';
+      }
+      return 'Login yoki parol noto\'g\'ri';
+    }
+    if (e.response?.statusCode == 404) return 'Ma\'lumot topilmadi.';
+    if (e.type == DioExceptionType.connectionTimeout) return 'Ulanish vaqti tugadi.';
+    if (e.type == DioExceptionType.receiveTimeout) return 'Server javob bermadi.';
+    return e.message ?? 'Noma\'lum xatolik';
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  AUTH
+  // ══════════════════════════════════════════════════════════
   Future<UserModel> login(String username, String password) async {
     try {
-      /*ignore: avoid_print*/
-      print('$tag Logging in: $username');
-      final response = await _dio.post(
-        'auth/login/',
-        data: {'username': username, 'password': password},
-      );
+      final response = await _dio.post('auth/login/',
+          data: {'username': username, 'password': password});
       final data = response.data;
       final token = (data['token'] ?? data['access'] ?? '') as String;
       await _authService.saveToken(token);
       final refresh = data['refresh'] as String?;
       if (refresh != null) await _authService.saveRefreshToken(refresh);
-      // Backend 'user' yoki bevosita data return qilishi mumkin
       Map<String, dynamic> userMap;
       if (data.containsKey('user') && data['user'] is Map) {
         userMap = data['user'] as Map<String, dynamic>;
@@ -102,72 +134,12 @@ class ApiService {
       }
       final user = UserModel.fromJson({...userMap, 'token': token});
       await _authService.saveUser(user);
-      /*ignore: avoid_print*/
-      print('$tag Login successful: ${user.name}');
       return user;
     } on DioException catch (e) {
-      /*ignore: avoid_print*/
-      print('$tag Login error [${e.response?.statusCode}]: ${e.message}');
-      /*ignore: avoid_print*/
-      print('$tag Response: ${e.response?.data}');
-
-      // User-friendly error message
-      final errorMsg = _getErrorMessage(e);
-      throw Exception(errorMsg);
-    } catch (e) {
-      /*ignore: avoid_print*/
-      print('$tag Login error: $e');
-      rethrow;
+      throw Exception(_getErrorMessage(e));
     }
   }
 
-  /// Extract user-friendly error message from DioException
-  String _getErrorMessage(DioException e) {
-    if (e.response?.statusCode == 500) {
-      return 'Server xatosi. Iltimos, keyinroq qayta urinib ko\'ring.';
-    }
-    if (e.response?.statusCode == 422) {
-      // 422 Unprocessable Entity - validation error
-      final data = e.response?.data;
-      /*ignore: avoid_print*/
-      print('$tag 422 Validation Error: $data');
-      if (data is Map) {
-        // Try to extract validation error details
-        final errors = StringBuffer();
-        data.forEach((key, value) {
-          if (value is List && value.isNotEmpty) {
-            errors.write('$key: ${value.join(", ")}. ');
-          } else if (value is String) {
-            errors.write('$key: $value. ');
-          }
-        });
-        if (errors.isNotEmpty) {
-          return 'Ma\'lumotlar xatosi: ${errors.toString()}';
-        }
-      }
-      return 'Ma\'lumotlarni qayta tekshiring va qayta urinib ko\'ring.';
-    }
-    if (e.response?.statusCode == 401 || e.response?.statusCode == 400) {
-      final data = e.response?.data;
-      if (data is Map) {
-        if (data.containsKey('detail')) return data['detail'].toString();
-        if (data.containsKey('message')) return data['message'].toString();
-      }
-      return 'Login yoki parol noto\'g\'ri';
-    }
-    if (e.response?.statusCode == 404) {
-      return 'Server topilmadi. URL ni tekshiring.';
-    }
-    if (e.type == DioExceptionType.connectionTimeout) {
-      return 'Ulanish vaqti tugadi. Internetni tekshiring.';
-    }
-    if (e.type == DioExceptionType.receiveTimeout) {
-      return 'Server javob bermadi. Iltimos, qayta urinib ko\'ring.';
-    }
-    return e.message ?? 'Noma\'lum xatolik';
-  }
-
-  // AUTH — Registration
   Future<UserModel> register({
     required String username,
     required String name,
@@ -178,26 +150,16 @@ class ApiService {
     String? subject,
   }) async {
     try {
-      /*ignore: avoid_print*/
-      print('$tag Registering: $email');
-      final response = await _dio.post(
-        'auth/register/',
-        data: {
-          'username': username,
-          'name': name,
-          'email': email,
-          'password': password,
-          'password2': password2,
-          'phone': phone ?? '',
-          'subject': subject ?? '',
-        },
-      );
+      final response = await _dio.post('auth/register/', data: {
+        'username': username, 'name': name, 'email': email,
+        'password': password, 'password2': password2,
+        'phone': phone ?? '', 'subject': subject ?? '',
+      });
       final data = response.data;
       final token = (data['token'] ?? data['access'] ?? '') as String;
       await _authService.saveToken(token);
       final refresh = data['refresh'] as String?;
       if (refresh != null) await _authService.saveRefreshToken(refresh);
-      // Backend 'user' yoki bevosita data return qilishi mumkin
       Map<String, dynamic> userMap;
       if (data.containsKey('user') && data['user'] is Map) {
         userMap = data['user'] as Map<String, dynamic>;
@@ -206,22 +168,9 @@ class ApiService {
       }
       final user = UserModel.fromJson({...userMap, 'token': token});
       await _authService.saveUser(user);
-      /*ignore: avoid_print*/
-      print('$tag Registration successful: ${user.name}');
       return user;
     } on DioException catch (e) {
-      /*ignore: avoid_print*/
-      print('$tag Register error [${e.response?.statusCode}]: ${e.message}');
-      /*ignore: avoid_print*/
-      print('$tag Response: ${e.response?.data}');
-
-      // User-friendly error message
-      final errorMsg = _getErrorMessage(e);
-      throw Exception(errorMsg);
-    } catch (e) {
-      /*ignore: avoid_print*/
-      print('$tag Register error: $e');
-      rethrow;
+      throw Exception(_getErrorMessage(e));
     }
   }
 
@@ -241,11 +190,11 @@ class ApiService {
     return UserModel.fromJson({...response.data, 'token': token ?? ''});
   }
 
-  // COURSES
+  // ══════════════════════════════════════════════════════════
+  //  COURSES — faqat o'qituvchiga tegishli
+  // ══════════════════════════════════════════════════════════
   Future<List<CourseModel>> getCourses() async {
     final response = await _dio.get('courses/');
-    // Django REST Framework pagination bo'lsa: {results: [...], count: ...}
-    // Va bo'lmasa: [...]  yoki {data: [...]}
     final List list = _parseListResponse(response.data);
     return list.map((e) => CourseModel.fromJson(e)).toList();
   }
@@ -269,7 +218,9 @@ class ApiService {
     await _dio.delete('courses/$id/');
   }
 
-  // GROUPS
+  // ══════════════════════════════════════════════════════════
+  //  GROUPS — faqat o'qituvchiga tegishli guruhlar
+  // ══════════════════════════════════════════════════════════
   Future<List<GroupModel>> getGroups({int? courseId}) async {
     final response = await _dio.get('groups/',
         queryParameters: courseId != null ? {'course_id': courseId} : null);
@@ -296,7 +247,10 @@ class ApiService {
     await _dio.delete('groups/$id/');
   }
 
-  // STUDENTS
+  // ══════════════════════════════════════════════════════════
+  //  STUDENTS — faqat o'qituvchiga tegishli o'quvchilar
+  //  Backend: StudentListCreateView → group__course__teacher=user
+  // ══════════════════════════════════════════════════════════
   Future<List<StudentModel>> getStudents({int? groupId, int? courseId}) async {
     final Map<String, dynamic> params = {};
     if (groupId != null) params['group_id'] = groupId;
@@ -326,66 +280,197 @@ class ApiService {
     await _dio.delete('students/$id/');
   }
 
-  // PREDICTION
-  Future<PredictionResult> predict(PredictionRequest request) async {
-    /*ignore: avoid_print*/
-    print('$tag Predict request: ${request.toJson()}');
+  // ── Student progress & history ────────────────────────────
+  Future<Map<String, dynamic>> getStudentProgress(int studentId,
+      {int days = 60}) async {
     try {
-      // Ensure all numeric values are doubles for the backend
-      final Map<String, dynamic> data = {
+      final response = await _dio.get('students/$studentId/progress/',
+          queryParameters: {'days': days});
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw Exception(_getErrorMessage(e));
+    }
+  }
+
+  Future<Map<String, dynamic>> getStudentAttendance(int studentId,
+      {int days = 30}) async {
+    final response = await _dio
+        .get('students/$studentId/attendance/', queryParameters: {'days': days});
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getStudentHomework(int studentId,
+      {int days = 30}) async {
+    final response = await _dio.get('students/$studentId/homework/',
+        queryParameters: {'days': days});
+    return response.data as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getStudentQuiz(int studentId,
+      {int days = 90}) async {
+    final response = await _dio.get('students/$studentId/quiz/',
+        queryParameters: {'days': days});
+    return response.data as Map<String, dynamic>;
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  BULK KIRITISH ENDPOINTLARI
+  // ══════════════════════════════════════════════════════════
+  Future<Map<String, dynamic>> bulkAttendance(
+      Map<String, dynamic> data) async {
+    try {
+      final response = await _dio.post('attendance/bulk/', data: data);
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      print('$tag Bulk attendance error: ${e.response?.data}');
+      throw Exception(_getErrorMessage(e));
+    }
+  }
+
+  Future<Map<String, dynamic>> bulkHomework(Map<String, dynamic> data) async {
+    try {
+      final response = await _dio.post('homework/bulk/', data: data);
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      print('$tag Bulk homework error: ${e.response?.data}');
+      throw Exception(_getErrorMessage(e));
+    }
+  }
+
+  Future<Map<String, dynamic>> bulkQuiz(Map<String, dynamic> data) async {
+    try {
+      final response = await _dio.post('quiz/bulk/', data: data);
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      print('$tag Bulk quiz error: ${e.response?.data}');
+      throw Exception(_getErrorMessage(e));
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════
+  //  PREDICTION
+  //  Backend: faqat teacher ga tegishli o'quvchilarni qabul qiladi
+  // ══════════════════════════════════════════════════════════
+
+  /// Bitta o'quvchi uchun prognoz — POST /api/v1/predict/
+  Future<PredictionResult> predict(PredictionRequest request) async {
+    try {
+      final response = await _dio.post('predict/', data: {
         'student_id': request.studentId,
         'attendance': request.attendance.toDouble(),
         'homework': request.homework.toDouble(),
         'quiz': request.quiz.toDouble(),
         'exam': request.exam.toDouble(),
-      };
-      final response = await _dio.post('predict/', data: data);
+      });
       return PredictionResult.fromJson(response.data);
     } on DioException catch (e) {
-      /*ignore: avoid_print*/
-      print('$tag Predict error [${e.response?.statusCode}]: ${e.message}');
-      /*ignore: avoid_print*/
-      print('$tag Predict request data: ${request.toJson()}');
-      /*ignore: avoid_print*/
-      print('$tag Predict response: ${e.response?.data}');
-      final errorMsg = _getErrorMessage(e);
-      throw Exception(errorMsg);
+      print('$tag Predict error [${e.response?.statusCode}]: ${e.response?.data}');
+      throw Exception(_getErrorMessage(e));
     }
   }
 
-  // STATS
-  Future<Map<String, dynamic>> getOverviewStats() async {
-    final response = await _dio.get('stats/overview/');
-    return response.data as Map<String, dynamic>;
+  /// Ko'p o'quvchi uchun batch prognoz — POST /api/v1/predict/batch/
+  /// studentIds: [1, 2, 3, ...]
+  Future<List<PredictionResult>> batchPredict(List<int> studentIds) async {
+    try {
+      print('$tag Batch predict: ${studentIds.length} ta o\'quvchi');
+      final response = await _dio.post('predict/batch/',
+          data: {'student_ids': studentIds});
+
+      final List list = _parseListResponse(response.data);
+      final results = <PredictionResult>[];
+
+      for (final item in list) {
+        if (item is Map<String, dynamic>) {
+          // Xatolik bo'lgan o'quvchilarni o'tkazib yuboramiz
+          if (item.containsKey('error')) {
+            print('$tag Batch predict skip: ${item['student_name']} — ${item['error']}');
+            continue;
+          }
+          try {
+            results.add(PredictionResult.fromJson(item));
+          } catch (e) {
+            print('$tag Batch predict parse error: $e');
+          }
+        }
+      }
+      print('$tag Batch predict done: ${results.length} natija');
+      return results;
+    } on DioException catch (e) {
+      print('$tag Batch predict error [${e.response?.statusCode}]: ${e.response?.data}');
+      throw Exception(_getErrorMessage(e));
+    }
   }
 
+  // ══════════════════════════════════════════════════════════
+  //  STATISTIKA — faqat o'qituvchiga tegishli
+  //  Backend: teacher = request.user bo'yicha filter
+  // ══════════════════════════════════════════════════════════
+  Future<Map<String, dynamic>> getOverviewStats() async {
+    try {
+      final response = await _dio.get('stats/overview/');
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw Exception(_getErrorMessage(e));
+    }
+  }
+
+  /// Xavf ostidagi o'quvchilar — faqat teacher ga tegishlilar
   Future<List<StudentModel>> getAtRiskStudents() async {
-    final response = await _dio.get('stats/at-risk/');
-    final List list = _parseListResponse(response.data);
-    return list.map((e) => StudentModel.fromJson(e)).toList();
+    try {
+      final response = await _dio.get('stats/at-risk/');
+      final List list = _parseListResponse(response.data);
+      return list.map((e) {
+        // Backend at-risk response: {student_id, student_name, group_name, course_name, ...}
+        final studentData = <String, dynamic>{
+          'id': e['student_id'] ?? 0,
+          'name': e['student_name'] ?? '',
+          'group_id': 0,
+          'group_name': e['group_name'] ?? '',
+          'course_id': 0,
+          'course_name': e['course_name'] ?? '',
+          'scores': {
+            'attendance': 0,
+            'homework': 0,
+            'quiz': 0,
+            'exam': (e['predicted_score'] ?? 0).toDouble(),
+          },
+          'enrolled_at': null,
+        };
+        return StudentModel.fromJson(studentData);
+      }).toList();
+    } on DioException catch (e) {
+      throw Exception(_getErrorMessage(e));
+    }
   }
 
   Future<Map<String, dynamic>> getCourseStats(int courseId) async {
-    final response = await _dio.get('stats/courses/$courseId/');
-    return response.data as Map<String, dynamic>;
+    try {
+      final response = await _dio.get('stats/courses/$courseId/');
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw Exception(_getErrorMessage(e));
+    }
   }
 
   Future<Map<String, dynamic>> getGroupStats(int groupId) async {
-    final response = await _dio.get('stats/groups/$groupId/');
-    return response.data as Map<String, dynamic>;
+    try {
+      final response = await _dio.get('stats/groups/$groupId/');
+      return response.data as Map<String, dynamic>;
+    } on DioException catch (e) {
+      throw Exception(_getErrorMessage(e));
+    }
   }
 
-  // NOTIFICATIONS
-  // Note: Backend doesn't have notifications endpoint yet
-  // Using at-risk students as notification source for now
+  // ══════════════════════════════════════════════════════════
+  //  BILDIRISHNOMALAR (fallback)
+  // ══════════════════════════════════════════════════════════
   Future<List<NotificationModel>> getNotifications() async {
     try {
-      // Try to get notifications from backend
       final response = await _dio.get('notifications/');
       final List list = _parseListResponse(response.data);
       return list.map((e) => NotificationModel.fromJson(e)).toList();
     } on DioException catch (e) {
-      // If no notifications endpoint, create from at-risk students
       if (e.response?.statusCode == 404) {
         return _generateNotificationsFromAtRisk();
       }
@@ -393,29 +478,18 @@ class ApiService {
     }
   }
 
-  // Generate notifications from at-risk students (fallback)
   Future<List<NotificationModel>> _generateNotificationsFromAtRisk() async {
     final atRiskStudents = await getAtRiskStudents();
-    final notifications = <NotificationModel>[];
-
-    for (final student in atRiskStudents) {
-      notifications.add(NotificationModel(
-        id: student.id,
-        title: 'Xavf ostidagi o\'quvchi',
-        message: '${student.name} - xavf darajasi yuqori. Darhol yordam kerak!',
-        type: NotificationType.atRisk,
-        isRead: false,
-        createdAt: DateTime.now(),
-        studentId: student.id,
-        groupId: student.groupId,
-        courseId: student.courseId,
-      ));
-    }
-
-    return notifications;
-  }
-
-  int getUnreadNotificationCount(List<NotificationModel> notifications) {
-    return notifications.where((n) => !n.isRead).length;
+    return atRiskStudents.map((student) => NotificationModel(
+          id: student.id,
+          title: 'Xavf ostidagi o\'quvchi',
+          message: '${student.name} — darhol yordam kerak!',
+          type: NotificationType.atRisk,
+          isRead: false,
+          createdAt: DateTime.now(),
+          studentId: student.id,
+          groupId: student.groupId,
+          courseId: student.courseId,
+        )).toList();
   }
 }

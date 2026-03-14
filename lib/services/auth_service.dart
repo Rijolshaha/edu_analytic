@@ -8,14 +8,19 @@ import '../models/user_model.dart';
 
 final authServiceProvider = Provider<AuthService>((ref) => AuthService());
 
+/// Saqlangan foydalanuvchini storage dan yuklaydi
+final storedUserProvider = FutureProvider<UserModel?>((ref) async {
+  final auth = ref.read(authServiceProvider);
+  return auth.getUser();
+});
+
 final currentUserProvider =
     StateNotifierProvider<CurrentUserNotifier, UserModel?>((ref) {
-  return CurrentUserNotifier();
+  return CurrentUserNotifier(ref.read(authServiceProvider));
 });
 
 class AuthService {
   // ── Token ──────────────────────────────────────────────
-
   Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(AppConstants.tokenKey);
@@ -37,7 +42,6 @@ class AuthService {
   }
 
   // ── User ───────────────────────────────────────────────
-
   Future<void> saveUser(UserModel user) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(AppConstants.userKey, jsonEncode(user.toJson()));
@@ -47,11 +51,14 @@ class AuthService {
     final prefs = await SharedPreferences.getInstance();
     final userJson = prefs.getString(AppConstants.userKey);
     if (userJson == null) return null;
-    return UserModel.fromJson(jsonDecode(userJson));
+    try {
+      return UserModel.fromJson(jsonDecode(userJson));
+    } catch (_) {
+      return null;
+    }
   }
 
   // ── Logout ─────────────────────────────────────────────
-
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(AppConstants.tokenKey);
@@ -60,15 +67,12 @@ class AuthService {
   }
 
   // ── Auth check ─────────────────────────────────────────
-
   Future<bool> isLoggedIn() async {
     final token = await getToken();
     return token != null && token.isNotEmpty;
   }
 
   // ── Token Refresh ──────────────────────────────────────
-  // POST /auth/refresh/  →  { access: "..." } yoki { token: "..." }
-
   Future<bool> refreshToken(Dio dio) async {
     try {
       final refreshToken = await getRefreshToken();
@@ -80,7 +84,6 @@ class AuthService {
         options: Options(headers: {'Authorization': null}),
       );
 
-      // Backend 'access' yoki 'token' qaytarishi mumkin
       final newToken =
           response.data['access'] ?? response.data['token'] as String?;
       if (newToken != null) {
@@ -96,7 +99,19 @@ class AuthService {
 }
 
 class CurrentUserNotifier extends StateNotifier<UserModel?> {
-  CurrentUserNotifier() : super(null);
+  final AuthService _authService;
+
+  CurrentUserNotifier(this._authService) : super(null) {
+    // App ishga tushganda storage dan foydalanuvchini yuklaymiz
+    _loadFromStorage();
+  }
+
+  Future<void> _loadFromStorage() async {
+    final user = await _authService.getUser();
+    if (user != null && mounted) {
+      state = user;
+    }
+  }
 
   void setUser(UserModel user) => state = user;
   void clearUser() => state = null;

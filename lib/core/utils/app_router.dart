@@ -12,36 +12,24 @@ import '../../screens/students/student_detail_screen.dart';
 import '../../screens/prediction/prediction_screen.dart';
 import '../../screens/statistics/statistics_screen.dart';
 import '../../screens/settings/settings_screen.dart';
+import '../../screens/daily_entry/daily_entry_screen.dart';
 import '../../models/student_model.dart';
 import '../../services/auth_service.dart';
-
-// Provider to check if user is logged in
-final isLoggedInProvider = FutureProvider<bool>((ref) async {
-  final authService = ref.read(authServiceProvider);
-  return authService.isLoggedIn();
-});
 
 final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/login',
     redirect: (context, state) async {
       final isLoggedIn = await ref.read(authServiceProvider).isLoggedIn();
-      final isOnLogin = state.matchedLocation == '/login';
+      final isOnAuth = state.matchedLocation == '/login' ||
+          state.matchedLocation == '/register';
 
-      // If not logged in and not on login page, redirect to login
-      if (!isLoggedIn && !isOnLogin) {
-        return '/login';
-      }
-
-      // If logged in and on login page, redirect to dashboard
-      if (isLoggedIn && isOnLogin) {
-        return '/dashboard';
-      }
-
+      if (!isLoggedIn && !isOnAuth) return '/login';
+      if (isLoggedIn && isOnAuth) return '/dashboard';
       return null;
     },
     routes: [
-      // Auth - bottom nav yo'q
+      // ── Auth routes (bottom nav yo'q) ────────────────────
       GoRoute(
         path: '/login',
         name: 'login',
@@ -53,7 +41,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => const RegisterScreen(),
       ),
 
-      // Shell - bottom nav bor
+      // ── Shell routes (bottom nav bilan) ─────────────────
       ShellRoute(
         builder: (context, state, child) => ShellScreen(child: child),
         routes: [
@@ -63,19 +51,14 @@ final routerProvider = Provider<GoRouter>((ref) {
             builder: (context, state) => const DashboardScreen(),
           ),
           GoRoute(
-            path: '/courses',
-            name: 'courses',
-            builder: (context, state) => const CoursesScreen(),
-          ),
-          GoRoute(
-            path: '/groups',
-            name: 'groups',
-            builder: (context, state) => const GroupsScreen(),
-          ),
-          GoRoute(
             path: '/students',
             name: 'students',
             builder: (context, state) => const StudentsScreen(),
+          ),
+          GoRoute(
+            path: '/daily-entry',
+            name: 'daily_entry',
+            builder: (context, state) => const DailyEntryScreen(),
           ),
           GoRoute(
             path: '/prediction',
@@ -92,15 +75,31 @@ final routerProvider = Provider<GoRouter>((ref) {
             name: 'settings',
             builder: (context, state) => const SettingsScreen(),
           ),
+          // Courses va Groups - dashboard orqali ham kirsa bo'ladi
+          GoRoute(
+            path: '/courses',
+            name: 'courses',
+            builder: (context, state) => const CoursesScreen(),
+          ),
+          GoRoute(
+            path: '/groups',
+            name: 'groups',
+            builder: (context, state) => const GroupsScreen(),
+          ),
         ],
       ),
 
-      // Student detail - bottom nav yo'q (full screen)
+      // ── Student detail (full screen, bottom nav yo'q) ────
       GoRoute(
         path: '/students/:id',
         name: 'student_detail',
         builder: (context, state) {
-          final student = state.extra as StudentModel;
+          // extra dan StudentModel olinadi
+          final student = state.extra as StudentModel?;
+          if (student == null) {
+            // Fallback: agar extra bo'lmasa login ga qayt
+            return const LoginScreen();
+          }
           return StudentDetailScreen(student: student);
         },
       ),

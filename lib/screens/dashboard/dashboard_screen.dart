@@ -15,6 +15,15 @@ import '../../providers/notification_providers.dart';
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
+  void _refreshDashboard(WidgetRef ref) {
+    ref.invalidate(dashboardStatsProvider);
+    ref.invalidate(atRiskStudentsProvider);
+    ref.invalidate(coursesProvider);
+    ref.invalidate(groupsProvider);
+    ref.invalidate(studentsProvider);
+    ref.invalidate(notificationsProvider);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider);
@@ -36,8 +45,14 @@ class DashboardScreen extends ConsumerWidget {
     return Scaffold(
       body: CustomScrollView(
         slivers: [
-          _buildAppBar(context, user?.name ?? l.teacher, isDark, unreadCount,
-              notificationsAsync),
+          _buildAppBar(
+            context,
+            user?.name ?? l.teacher,
+            isDark,
+            unreadCount,
+            notificationsAsync,
+            () => _refreshDashboard(ref),
+          ),
           SliverPadding(
             padding: const EdgeInsets.all(20),
             sliver: SliverList(
@@ -85,8 +100,14 @@ class DashboardScreen extends ConsumerWidget {
     );
   }
 
-  SliverAppBar _buildAppBar(BuildContext context, String name, bool isDark,
-      int unreadCount, AsyncValue<List<NotificationModel>> notificationsAsync) {
+  SliverAppBar _buildAppBar(
+    BuildContext context,
+    String name,
+    bool isDark,
+    int unreadCount,
+    AsyncValue<List<NotificationModel>> notificationsAsync,
+    VoidCallback onRefresh,
+  ) {
     return SliverAppBar(
       floating: true,
       snap: true,
@@ -141,6 +162,11 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               ),
           ],
+        ),
+        IconButton(
+          icon: const Icon(Icons.refresh_rounded),
+          onPressed: onRefresh,
+          tooltip: 'Yangilash',
         ),
         IconButton(
           icon: const Icon(Icons.settings_outlined),
